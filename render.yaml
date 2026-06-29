@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: call-recorder-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    envVars:
+      - key: TWILIO_ACCOUNT_SID
+        value: AC7157ac32a7c1840500f153d3b71f9979
+      - key: TWILIO_AUTH_TOKEN
+        value: c2e7a8036607d884cdd82c8beecfe3c0
+      - key: TWILIO_PHONE_NUMBER
+        value: +16187643399
+      - key: DEEPGRAM_API_KEY
+        value: c50f3cfb98d6b3586fe819f36c72d8536789450f
