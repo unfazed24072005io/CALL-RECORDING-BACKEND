@@ -1,4 +1,4 @@
-# server.py - With extensive debugging
+# server.py - DEBUG VERSION
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -6,54 +6,49 @@ from twilio.twiml.voice_response import VoiceResponse, Say, Record
 from twilio.rest import Client
 import requests
 import json
+import traceback
 
 app = Flask(__name__)
 CORS(app)
 
 # ============================================
-# CREDENTIALS - HARDCODED FOR TESTING
+# CREDENTIALS - HARDCODED
 # ============================================
 TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
 TWILIO_AUTH_TOKEN = "c2e7a8036607d884cdd82c8beecfe3c0"
 TWILIO_PHONE_NUMBER = "+16187643399"
 DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
 
-# Override with environment variables if they exist
-if os.environ.get('TWILIO_ACCOUNT_SID'):
-    TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
-    print("✅ Using TWILIO_ACCOUNT_SID from environment")
-else:
-    print("⚠️ Using HARDCODED TWILIO_ACCOUNT_SID")
+BASE_URL = "https://call-recording-backend.onrender.com"
 
-if os.environ.get('TWILIO_AUTH_TOKEN'):
-    TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
-    print("✅ Using TWILIO_AUTH_TOKEN from environment")
-else:
-    print("⚠️ Using HARDCODED TWILIO_AUTH_TOKEN")
-
-BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://call-recording-backend.onrender.com')
-
-# PRINT ALL CREDENTIALS (for debugging - remove after testing)
 print("="*60)
-print("🔑 CREDENTIALS DEBUG:")
-print(f"TWILIO_ACCOUNT_SID: {TWILIO_ACCOUNT_SID[:10]}...{TWILIO_ACCOUNT_SID[-4:] if TWILIO_ACCOUNT_SID else 'NOT SET'}")
-print(f"TWILIO_AUTH_TOKEN: {TWILIO_AUTH_TOKEN[:10]}...{TWILIO_AUTH_TOKEN[-4:] if TWILIO_AUTH_TOKEN else 'NOT SET'}")
-print(f"TWILIO_PHONE_NUMBER: {TWILIO_PHONE_NUMBER}")
-print(f"DEEPGRAM_API_KEY: {DEEPGRAM_API_KEY[:10]}...{DEEPGRAM_API_KEY[-4:] if DEEPGRAM_API_KEY else 'NOT SET'}")
+print("🚀 Starting Call Recorder Server (DEBUG MODE)")
+print(f"📞 TWILIO_ACCOUNT_SID: {TWILIO_ACCOUNT_SID}")
+print(f"📞 TWILIO_AUTH_TOKEN: {TWILIO_AUTH_TOKEN[:10]}...{TWILIO_AUTH_TOKEN[-4:]}")
+print(f"📞 TWILIO_PHONE_NUMBER: {TWILIO_PHONE_NUMBER}")
 print("="*60)
 
-# Initialize Twilio client
+# ============================================
+# TRY TO INITIALIZE TWILIO WITH ERROR HANDLING
+# ============================================
 try:
+    print("🔄 Attempting to initialize Twilio client...")
     twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    print("✅ Twilio client initialized successfully!")
+    print("✅ Twilio client created successfully!")
     
-    # Test the client by fetching account info
+    # Test the connection
+    print("🔄 Testing connection to Twilio API...")
     account = twilio_client.api.accounts(TWILIO_ACCOUNT_SID).fetch()
-    print(f"✅ Account verified: {account.friendly_name}")
+    print(f"✅ Connected! Account: {account.friendly_name}")
+    print(f"✅ Account Status: {account.status}")
     
 except Exception as e:
     twilio_client = None
-    print(f"❌ Twilio client initialization FAILED: {e}")
+    print(f"❌ Twilio client initialization FAILED!")
+    print(f"❌ Error: {e}")
+    print(f"❌ Error type: {type(e).__name__}")
+    print("❌ Full traceback:")
+    traceback.print_exc()
 
 transcripts = {}
 
@@ -170,12 +165,11 @@ def make_call():
     if not phone_number:
         return jsonify({"error": "Phone number required"}), 400
     
-    if not twilio_client:
-        print("❌ twilio_client is None! Check credentials.")
-        return jsonify({"error": "Twilio client not initialized. Check credentials."}), 500
+    if twilio_client is None:
+        print("❌ twilio_client is None!")
+        return jsonify({"error": "Twilio client not initialized. Check server logs."}), 500
     
     print(f"\n📞 Making call to: {phone_number}")
-    print(f"📡 Using Twilio client: {twilio_client}")
     
     response = VoiceResponse()
     response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
@@ -200,9 +194,7 @@ def make_call():
         return jsonify({"call_sid": call.sid})
     except Exception as e:
         print(f"❌ Error: {e}")
-        print(f"❌ Error type: {type(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Error type: {type(e).__name__}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/recording-callback', methods=['POST'])
@@ -254,10 +246,9 @@ def ping():
 def debug():
     return jsonify({
         "twilio_initialized": twilio_client is not None,
-        "has_account_sid": bool(TWILIO_ACCOUNT_SID),
-        "has_auth_token": bool(TWILIO_AUTH_TOKEN),
-        "has_phone_number": bool(TWILIO_PHONE_NUMBER),
-        "has_deepgram_key": bool(DEEPGRAM_API_KEY),
+        "account_sid": TWILIO_ACCOUNT_SID[:10] + "..." if TWILIO_ACCOUNT_SID else None,
+        "phone_number": TWILIO_PHONE_NUMBER,
+        "has_deepgram": bool(DEEPGRAM_API_KEY),
         "base_url": BASE_URL
     })
 
