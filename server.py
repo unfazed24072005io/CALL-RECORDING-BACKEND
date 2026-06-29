@@ -1,4 +1,4 @@
-# server.py - PRODUCTION READY with proper error handling
+# server.py - With extensive debugging
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -11,28 +11,49 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================
-# ENVIRONMENT VARIABLES (Set in Render Dashboard)
+# CREDENTIALS - HARDCODED FOR TESTING
 # ============================================
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
-TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
-DEEPGRAM_API_KEY = os.environ.get('DEEPGRAM_API_KEY')
+TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
+TWILIO_AUTH_TOKEN = "c2e7a8036607d884cdd82c8beecfe3c0"
+TWILIO_PHONE_NUMBER = "+16187643399"
+DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
 
-# Render provides this automatically
+# Override with environment variables if they exist
+if os.environ.get('TWILIO_ACCOUNT_SID'):
+    TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
+    print("✅ Using TWILIO_ACCOUNT_SID from environment")
+else:
+    print("⚠️ Using HARDCODED TWILIO_ACCOUNT_SID")
+
+if os.environ.get('TWILIO_AUTH_TOKEN'):
+    TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
+    print("✅ Using TWILIO_AUTH_TOKEN from environment")
+else:
+    print("⚠️ Using HARDCODED TWILIO_AUTH_TOKEN")
+
 BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://call-recording-backend.onrender.com')
 
-# Print debug info (will show in Render logs)
-print(f"🔑 TWILIO_ACCOUNT_SID: {TWILIO_ACCOUNT_SID[:10] if TWILIO_ACCOUNT_SID else 'NOT SET'}...")
-print(f"🔑 DEEPGRAM_API_KEY: {DEEPGRAM_API_KEY[:10] if DEEPGRAM_API_KEY else 'NOT SET'}...")
-print(f"🌐 BASE_URL: {BASE_URL}")
+# PRINT ALL CREDENTIALS (for debugging - remove after testing)
+print("="*60)
+print("🔑 CREDENTIALS DEBUG:")
+print(f"TWILIO_ACCOUNT_SID: {TWILIO_ACCOUNT_SID[:10]}...{TWILIO_ACCOUNT_SID[-4:] if TWILIO_ACCOUNT_SID else 'NOT SET'}")
+print(f"TWILIO_AUTH_TOKEN: {TWILIO_AUTH_TOKEN[:10]}...{TWILIO_AUTH_TOKEN[-4:] if TWILIO_AUTH_TOKEN else 'NOT SET'}")
+print(f"TWILIO_PHONE_NUMBER: {TWILIO_PHONE_NUMBER}")
+print(f"DEEPGRAM_API_KEY: {DEEPGRAM_API_KEY[:10]}...{DEEPGRAM_API_KEY[-4:] if DEEPGRAM_API_KEY else 'NOT SET'}")
+print("="*60)
 
-# Initialize Twilio client only if credentials are set
-if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+# Initialize Twilio client
+try:
     twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    print("✅ Twilio client initialized")
-else:
+    print("✅ Twilio client initialized successfully!")
+    
+    # Test the client by fetching account info
+    account = twilio_client.api.accounts(TWILIO_ACCOUNT_SID).fetch()
+    print(f"✅ Account verified: {account.friendly_name}")
+    
+except Exception as e:
     twilio_client = None
-    print("❌ Twilio credentials not set!")
+    print(f"❌ Twilio client initialization FAILED: {e}")
 
 transcripts = {}
 
@@ -52,6 +73,7 @@ def index():
         .result { background: white; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
         .log { background: #1a1a2e; color: #aed581; padding: 15px; border-radius: 5px; font-family: monospace; max-height: 200px; overflow-y: auto; font-size: 12px; }
         .btn-success { background: #34a853; }
+        .error { background: #ffebee; color: #c62828; }
     </style>
 </head>
 <body>
@@ -92,13 +114,16 @@ def index():
             const data = await response.json();
             if (data.error) {
                 document.getElementById('status').innerHTML = '❌ Error: ' + data.error;
+                document.getElementById('status').className = 'status error';
                 addLog('❌ Error: ' + data.error);
             } else {
                 document.getElementById('status').innerHTML = '✅ Call initiated! Answer your phone!';
+                document.getElementById('status').className = 'status';
                 addLog('✅ Call SID: ' + data.call_sid);
             }
         } catch(e) {
             document.getElementById('status').innerHTML = '❌ Error';
+            document.getElementById('status').className = 'status error';
             addLog('❌ ' + e.message);
         }
     }
@@ -146,9 +171,11 @@ def make_call():
         return jsonify({"error": "Phone number required"}), 400
     
     if not twilio_client:
+        print("❌ twilio_client is None! Check credentials.")
         return jsonify({"error": "Twilio client not initialized. Check credentials."}), 500
     
     print(f"\n📞 Making call to: {phone_number}")
+    print(f"📡 Using Twilio client: {twilio_client}")
     
     response = VoiceResponse()
     response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
@@ -173,6 +200,9 @@ def make_call():
         return jsonify({"call_sid": call.sid})
     except Exception as e:
         print(f"❌ Error: {e}")
+        print(f"❌ Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/recording-callback', methods=['POST'])
@@ -214,7 +244,22 @@ def get_transcripts():
 
 @app.route('/ping')
 def ping():
-    return jsonify({"status": "ok", "transcripts": len(transcripts)})
+    return jsonify({
+        "status": "ok",
+        "transcripts": len(transcripts),
+        "twilio_initialized": twilio_client is not None
+    })
+
+@app.route('/debug')
+def debug():
+    return jsonify({
+        "twilio_initialized": twilio_client is not None,
+        "has_account_sid": bool(TWILIO_ACCOUNT_SID),
+        "has_auth_token": bool(TWILIO_AUTH_TOKEN),
+        "has_phone_number": bool(TWILIO_PHONE_NUMBER),
+        "has_deepgram_key": bool(DEEPGRAM_API_KEY),
+        "base_url": BASE_URL
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
