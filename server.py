@@ -1,4 +1,5 @@
-# server.py - FIXED: No second dial!
+# server.py - PRODUCTION READY with proper error handling
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from twilio.twiml.voice_response import VoiceResponse, Say, Record
@@ -9,14 +10,30 @@ import json
 app = Flask(__name__)
 CORS(app)
 
-# YOUR CREDENTIALS
-TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
-TWILIO_AUTH_TOKEN = "c2e7a8036607d884cdd82c8beecfe3c0"
-TWILIO_PHONE_NUMBER = "+16187643399"
-DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
-NGROK_URL = "https://nondefined-ungrayed-cayla.ngrok-free.dev"
+# ============================================
+# ENVIRONMENT VARIABLES (Set in Render Dashboard)
+# ============================================
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
+TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
+DEEPGRAM_API_KEY = os.environ.get('DEEPGRAM_API_KEY')
 
-twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+# Render provides this automatically
+BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://call-recording-backend.onrender.com')
+
+# Print debug info (will show in Render logs)
+print(f"🔑 TWILIO_ACCOUNT_SID: {TWILIO_ACCOUNT_SID[:10] if TWILIO_ACCOUNT_SID else 'NOT SET'}...")
+print(f"🔑 DEEPGRAM_API_KEY: {DEEPGRAM_API_KEY[:10] if DEEPGRAM_API_KEY else 'NOT SET'}...")
+print(f"🌐 BASE_URL: {BASE_URL}")
+
+# Initialize Twilio client only if credentials are set
+if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+    twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    print("✅ Twilio client initialized")
+else:
+    twilio_client = None
+    print("❌ Twilio credentials not set!")
+
 transcripts = {}
 
 @app.route('/')
@@ -27,26 +44,29 @@ def index():
 <head>
     <title>Call Recorder</title>
     <style>
-        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; }
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; background: #f5f7fa; }
+        h1 { color: #1a1a2e; }
+        .status { padding: 10px; background: #e8f5e9; margin: 10px 0; border-radius: 5px; }
         input, button { padding: 10px; font-size: 16px; width: 100%; margin: 10px 0; }
         button { background: #1a73e8; color: white; border: none; cursor: pointer; border-radius: 5px; }
-        .result { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-top: 20px; }
-        .status { padding: 10px; background: #e8f5e9; margin: 10px 0; border-radius: 5px; }
+        .result { background: white; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
         .log { background: #1a1a2e; color: #aed581; padding: 15px; border-radius: 5px; font-family: monospace; max-height: 200px; overflow-y: auto; font-size: 12px; }
+        .btn-success { background: #34a853; }
     </style>
 </head>
 <body>
     <h1>📞 Call Recorder</h1>
-    <p>Enter a number to call</p>
+    <h3>With Deepgram Transcription</h3>
     
     <div id="status" class="status">✅ Ready</div>
     
-    <input type="text" id="phone" placeholder="Enter number (e.g., +919583955784)" />
+    <h3>📱 Make a Call</h3>
+    <input type="text" id="phone" placeholder="Enter phone number (e.g., +919583955784)" />
     <button onclick="makeCall()">📞 Call & Record</button>
     
     <h3>📝 Transcripts</h3>
     <div id="result" class="result">No transcripts yet</div>
-    <button onclick="getTranscripts()" style="background:#34a853;">🔄 Refresh</button>
+    <button onclick="getTranscripts()" class="btn-success">🔄 Refresh</button>
     
     <h3>📋 Logs</h3>
     <div id="logs" class="log">⏳ Waiting...</div>
@@ -99,28 +119,41 @@ def index():
 </html>
     '''
 
+@app.route('/voice', methods=['GET', 'POST'])
+def voice():
+    """Handle incoming calls - Twilio webhook"""
+    print("\n📞 Incoming call received!")
+    print(f"From: {request.form.get('From')}")
+    print(f"To: {request.form.get('To')}")
+    
+    response = VoiceResponse()
+    response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
+    response.record(
+        action=BASE_URL + "/recording-callback",
+        method="POST",
+        max_length=3600,
+        finish_on_key="",
+        play_beep=False
+    )
+    
+    return str(response), 200, {'Content-Type': 'text/xml'}
+
 @app.route('/make-call', methods=['POST'])
 def make_call():
-    """Make outgoing call - ONE CALL, NO SECOND DIAL"""
+    """Make outgoing call"""
     phone_number = request.form.get('phone_number')
     if not phone_number:
         return jsonify({"error": "Phone number required"}), 400
     
+    if not twilio_client:
+        return jsonify({"error": "Twilio client not initialized. Check credentials."}), 500
+    
     print(f"\n📞 Making call to: {phone_number}")
     
-    # IMPORTANT: The caller is the person who will receive the call
-    # We don't need to dial again because Twilio calls them directly
-    
-    # Create TwiML that will be executed on the call
     response = VoiceResponse()
-    
-    # Play the message
     response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
-    
-    # CRITICAL FIX: Record the call - NO DIAL!
-    # The call is already connected to the number we're calling
     response.record(
-        action=NGROK_URL + "/recording-callback",
+        action=BASE_URL + "/recording-callback",
         method="POST",
         max_length=3600,
         finish_on_key="",
@@ -128,9 +161,9 @@ def make_call():
     )
     
     print(f"📝 TwiML: {response}")
+    print(f"📡 Callback URL: {BASE_URL}/recording-callback")
     
     try:
-        # Twilio calls the number directly with the TwiML instructions
         call = twilio_client.calls.create(
             twiml=str(response),
             to=phone_number,
@@ -152,21 +185,26 @@ def recording_callback():
     recording_url = data.get('RecordingUrl')
     call_sid = data.get('CallSid')
     
-    if recording_url:
+    if recording_url and DEEPGRAM_API_KEY:
         try:
+            print("🔄 Sending to Deepgram...")
             response = requests.post(
                 'https://api.deepgram.com/v1/listen',
                 headers={'Authorization': f'token {DEEPGRAM_API_KEY}'},
                 params={'punctuate': True, 'model': 'nova-2'},
-                json={"url": recording_url}
+                json={"url": recording_url},
+                timeout=60
             )
             if response.status_code == 200:
                 result = response.json()
                 transcript = result['results']['channels'][0]['alternatives'][0]['transcript']
                 transcripts[call_sid] = transcript
                 print(f"📝 Transcript: {transcript}")
+            else:
+                print(f"❌ Deepgram error: {response.status_code}")
+                print(response.text)
         except Exception as e:
-            print(f"Deepgram error: {e}")
+            print(f"❌ Deepgram error: {e}")
     
     return "OK", 200
 
@@ -176,12 +214,8 @@ def get_transcripts():
 
 @app.route('/ping')
 def ping():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "transcripts": len(transcripts)})
 
 if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("🚀 Starting Call Recorder")
-    print(f"📞 Twilio: {TWILIO_PHONE_NUMBER}")
-    print(f"🌐 ngrok: {NGROK_URL}")
-    print("="*60 + "\n")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
