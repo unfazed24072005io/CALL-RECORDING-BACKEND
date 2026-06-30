@@ -141,26 +141,28 @@ def index():
 
 @app.route('/voice', methods=['GET', 'POST'])
 def voice():
-    """Handle incoming calls - Twilio webhook"""
+    """Handle incoming calls - RECORDS BOTH SIDES"""
     print("\n📞 Incoming call received!")
     print(f"From: {request.form.get('From')}")
     print(f"To: {request.form.get('To')}")
     
     response = VoiceResponse()
     response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
+    
+    # ✅ CHANGED: Use Record with recording_track="both"
     response.record(
         action=BASE_URL + "/recording-callback",
         method="POST",
         max_length=3600,
         finish_on_key="",
-        play_beep=False
+        play_beep=False,
+        recording_track="both"  # ← RECORDS BOTH SIDES
     )
     
     return str(response), 200, {'Content-Type': 'text/xml'}
-
 @app.route('/make-call', methods=['POST'])
 def make_call():
-    """Make outgoing call"""
+    """Make outgoing call - RECORDS BOTH SIDES"""
     phone_number = request.form.get('phone_number')
     if not phone_number:
         return jsonify({"error": "Phone number required"}), 400
@@ -171,18 +173,24 @@ def make_call():
     
     print(f"\n📞 Making call to: {phone_number}")
     
+    # ✅ CHANGED: Use Dial with recording instead of Record
     response = VoiceResponse()
     response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
-    response.record(
-        action=BASE_URL + "/recording-callback",
-        method="POST",
-        max_length=3600,
-        finish_on_key="",
-        play_beep=False
+    
+    # ✅ THIS IS THE KEY CHANGE - Dial with recording_track="both"
+    dial = Dial(
+        callerId=TWILIO_PHONE_NUMBER,
+        record="record-from-answer",
+        recording_track="both",  # ← RECORDS BOTH SIDES
+        recording_status_callback=BASE_URL + "/recording-callback",
+        recording_status_callback_method="POST"
     )
+    dial.number(phone_number)
+    response.append(dial)
     
     print(f"📝 TwiML: {response}")
     print(f"📡 Callback URL: {BASE_URL}/recording-callback")
+    print(f"✅ Recording both sides: YES")
     
     try:
         call = twilio_client.calls.create(
