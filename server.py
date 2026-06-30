@@ -1,235 +1,229 @@
-# server.py - DEBUG VERSION
+# server.py - Complete Rewrite for Two-Way Calling with Recording
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from twilio.twiml.voice_response import VoiceResponse, Say, Record, Dial, Number
+from twilio.twiml.voice_response import VoiceResponse, Say, Dial, Number
 from twilio.rest import Client
+from twilio.jwt.access_token import AccessToken
+from twilio.jwt.access_token.grants import VoiceGrant
 import requests
 import json
 import traceback
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
 # ============================================
-# CREDENTIALS - HARDCODED
+# CREDENTIALS
 # ============================================
 TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
 TWILIO_AUTH_TOKEN = "571ef423b558b2c6cf953e01c0653835"
 TWILIO_PHONE_NUMBER = "+16187643399"
 DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
 
+# TwiML App SID - Create this in Twilio Console
+# Go to: Twilio Console > Voice > TwiML Apps > Create New
+# Voice URL: https://call-recording-backend.onrender.com/voice
+TWIML_APP_SID = "APXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"  # REPLACE WITH YOUR TWIML APP SID
+
 BASE_URL = "https://call-recording-backend.onrender.com"
 
 print("="*60)
-print("🚀 Starting Call Recorder Server (DEBUG MODE)")
+print("🚀 Starting Two-Way Call Recorder Server")
 print(f"📞 TWILIO_ACCOUNT_SID: {TWILIO_ACCOUNT_SID}")
-print(f"📞 TWILIO_AUTH_TOKEN: {TWILIO_AUTH_TOKEN[:10]}...{TWILIO_AUTH_TOKEN[-4:]}")
 print(f"📞 TWILIO_PHONE_NUMBER: {TWILIO_PHONE_NUMBER}")
+print(f"🌐 BASE_URL: {BASE_URL}")
 print("="*60)
 
 # ============================================
-# TRY TO INITIALIZE TWILIO WITH ERROR HANDLING
+# INITIALIZE TWILIO CLIENT
 # ============================================
 try:
-    print("🔄 Attempting to initialize Twilio client...")
     twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    print("✅ Twilio client created successfully!")
-    
-    # Test the connection
-    print("🔄 Testing connection to Twilio API...")
     account = twilio_client.api.accounts(TWILIO_ACCOUNT_SID).fetch()
     print(f"✅ Connected! Account: {account.friendly_name}")
-    print(f"✅ Account Status: {account.status}")
-    
 except Exception as e:
     twilio_client = None
-    print(f"❌ Twilio client initialization FAILED!")
-    print(f"❌ Error: {e}")
-    print(f"❌ Error type: {type(e).__name__}")
-    print("❌ Full traceback:")
-    traceback.print_exc()
+    print(f"❌ Twilio client initialization FAILED: {e}")
 
 transcripts = {}
+call_logs = {}
 
-@app.route('/')
-def index():
-    return '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Call Recorder</title>
-    <style>
-        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; background: #f5f7fa; }
-        h1 { color: #1a1a2e; }
-        .status { padding: 10px; background: #e8f5e9; margin: 10px 0; border-radius: 5px; }
-        input, button { padding: 10px; font-size: 16px; width: 100%; margin: 10px 0; }
-        button { background: #1a73e8; color: white; border: none; cursor: pointer; border-radius: 5px; }
-        .result { background: white; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
-        .log { background: #1a1a2e; color: #aed581; padding: 15px; border-radius: 5px; font-family: monospace; max-height: 200px; overflow-y: auto; font-size: 12px; }
-        .btn-success { background: #34a853; }
-        .error { background: #ffebee; color: #c62828; }
-    </style>
-</head>
-<body>
-    <h1>📞 Call Recorder</h1>
-    <h3>With Deepgram Transcription</h3>
-    
-    <div id="status" class="status">✅ Ready</div>
-    
-    <h3>📱 Make a Call</h3>
-    <input type="text" id="phone" placeholder="Enter phone number (e.g., +919583955784)" />
-    <button onclick="makeCall()">📞 Call & Record</button>
-    
-    <h3>📝 Transcripts</h3>
-    <div id="result" class="result">No transcripts yet</div>
-    <button onclick="getTranscripts()" class="btn-success">🔄 Refresh</button>
-    
-    <h3>📋 Logs</h3>
-    <div id="logs" class="log">⏳ Waiting...</div>
+# ============================================
+# SERVE STATIC FILES
+# ============================================
+@app.route('/agent')
+def serve_agent():
+    """Serve the agent dashboard HTML"""
+    return send_from_directory('.', 'agent.html')
 
-    <script>
-    function addLog(msg) {
-        const log = document.getElementById('logs');
-        const time = new Date().toLocaleTimeString();
-        log.innerHTML = time + ' ' + msg + '\\n' + log.innerHTML;
-    }
+# ============================================
+# GENERATE ACCESS TOKEN FOR BROWSER SDK
+# ============================================
+@app.route('/token', methods=['GET', 'POST'])
+def get_token():
+    """Generate an Access Token for Twilio Voice JS SDK"""
+    identity = request.args.get('identity', 'agent')
     
-    async function makeCall() {
-        const phone = document.getElementById('phone').value;
-        if (!phone) { alert('Enter a number'); return; }
-        document.getElementById('status').innerHTML = '📞 Calling ' + phone + '...';
-        addLog('📞 Calling ' + phone);
-        try {
-            const response = await fetch('/make-call', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'phone_number=' + encodeURIComponent(phone)
-            });
-            const data = await response.json();
-            if (data.error) {
-                document.getElementById('status').innerHTML = '❌ Error: ' + data.error;
-                document.getElementById('status').className = 'status error';
-                addLog('❌ Error: ' + data.error);
-            } else {
-                document.getElementById('status').innerHTML = '✅ Call initiated! Answer your phone!';
-                document.getElementById('status').className = 'status';
-                addLog('✅ Call SID: ' + data.call_sid);
-            }
-        } catch(e) {
-            document.getElementById('status').innerHTML = '❌ Error';
-            document.getElementById('status').className = 'status error';
-            addLog('❌ ' + e.message);
-        }
-    }
+    # Create Voice Grant
+    voice_grant = VoiceGrant(
+        outgoing_application_sid=TWIML_APP_SID,
+        incoming_allow=True
+    )
     
-    async function getTranscripts() {
-        try {
-            const response = await fetch('/transcripts');
-            const data = await response.json();
-            document.getElementById('result').innerHTML = JSON.stringify(data, null, 2);
-        } catch(e) {}
-    }
+    # Create Access Token
+    token = AccessToken(
+        TWILIO_ACCOUNT_SID,
+        TWILIO_AUTH_TOKEN,
+        identity=identity,
+        ttl=3600
+    )
+    token.add_grant(voice_grant)
     
-    setInterval(getTranscripts, 10000);
-    getTranscripts();
-    addLog('🚀 Ready! Enter a number and click Call.');
-    </script>
-</body>
-</html>
-    '''
+    return jsonify({
+        'token': token.to_jwt(),
+        'identity': identity
+    })
 
+# ============================================
+# VOICE WEBHOOK - Twilio calls this for call handling
+# ============================================
 @app.route('/voice', methods=['GET', 'POST'])
 def voice():
-    """Handle incoming calls - RECORDS BOTH SIDES"""
-    print("\n📞 Incoming call received!")
+    """Handle incoming and outgoing calls - Twilio webhook"""
+    print("\n📞 Voice webhook called!")
     print(f"From: {request.form.get('From')}")
     print(f"To: {request.form.get('To')}")
     
+    to_number = request.form.get('To')
+    from_number = request.form.get('From')
+    
     response = VoiceResponse()
-    response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
     
-    # ✅ CHANGED: Use Record with recording_track="both"
-    response.record(
-        action=BASE_URL + "/recording-callback",
-        method="POST",
-        max_length=3600,
-        finish_on_key="",
-        play_beep=False,
-        recording_track="both"  # ← RECORDS BOTH SIDES
-    )
+    # If this is an outbound call from the browser
+    if to_number and not to_number.startswith('client:'):
+        response.say("Connecting your call. This call may be recorded.", voice="Polly.Joanna")
+        
+        dial = Dial(
+            caller_id=TWILIO_PHONE_NUMBER,
+            record="record-from-answer",
+            recording_track="both",
+            recording_status_callback=BASE_URL + "/recording-callback",
+            recording_status_callback_method="POST",
+            timeout=30
+        )
+        dial.number(to_number)
+        response.append(dial)
     
+    # If this is an incoming call to your Twilio number
+    else:
+        response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
+        
+        dial = Dial(
+            record="record-from-answer",
+            recording_track="both",
+            recording_status_callback=BASE_URL + "/recording-callback",
+            recording_status_callback_method="POST"
+        )
+        # Forward to your agent's browser client
+        dial.client('agent')
+        response.append(dial)
+    
+    print(f"📝 TwiML: {response}")
     return str(response), 200, {'Content-Type': 'text/xml'}
-@app.route('/make-call', methods=['POST'])
+
+# ============================================
+# MAKE OUTGOING CALL FROM BROWSER
+# ============================================
+@app.route('/call', methods=['POST'])
 def make_call():
-    """Make outgoing call - RECORDS BOTH SIDES"""
-    phone_number = request.form.get('phone_number')
+    """Initiate an outbound call from the browser"""
+    data = request.get_json()
+    phone_number = data.get('phone_number')
+    
     if not phone_number:
         return jsonify({"error": "Phone number required"}), 400
     
-    if twilio_client is None:
-        print("❌ twilio_client is None!")
-        return jsonify({"error": "Twilio client not initialized. Check server logs."}), 500
+    if not twilio_client:
+        return jsonify({"error": "Twilio client not initialized"}), 500
     
-    print(f"\n📞 Making call to: {phone_number}")
+    print(f"\n📞 Browser initiating call to: {phone_number}")
     
-    # ✅ CHANGED: Use Dial with recording instead of Record
+    # Create the TwiML response for the call
     response = VoiceResponse()
-    response.say("This call may be recorded for quality and training purposes.", voice="Polly.Joanna")
+    response.say("Connecting your call. This call may be recorded.", voice="Polly.Joanna")
     
-    # ✅ THIS IS THE KEY CHANGE - Dial with recording_track="both"
     dial = Dial(
-        callerId=TWILIO_PHONE_NUMBER,
+        caller_id=TWILIO_PHONE_NUMBER,
         record="record-from-answer",
-        recording_track="both",  # ← RECORDS BOTH SIDES
+        recording_track="both",
         recording_status_callback=BASE_URL + "/recording-callback",
-        recording_status_callback_method="POST"
+        recording_status_callback_method="POST",
+        timeout=30
     )
     dial.number(phone_number)
     response.append(dial)
     
-    print(f"📝 TwiML: {response}")
-    print(f"📡 Callback URL: {BASE_URL}/recording-callback")
-    print(f"✅ Recording both sides: YES")
+    # Store the TwiML for this call
+    call = twilio_client.calls.create(
+        twiml=str(response),
+        to=phone_number,
+        from_=TWILIO_PHONE_NUMBER
+    )
     
-    try:
-        call = twilio_client.calls.create(
-            twiml=str(response),
-            to=phone_number,
-            from_=TWILIO_PHONE_NUMBER
-        )
-        print(f"✅ Call SID: {call.sid}")
-        return jsonify({"call_sid": call.sid})
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        print(f"❌ Error type: {type(e).__name__}")
-        return jsonify({"error": str(e)}), 500
+    print(f"✅ Call initiated! SID: {call.sid}")
+    
+    return jsonify({
+        "call_sid": call.sid,
+        "status": "initiated",
+        "message": "Call initiated successfully"
+    })
 
+# ============================================
+# RECORDING CALLBACK
+# ============================================
 @app.route('/recording-callback', methods=['POST'])
 def recording_callback():
-    """Receive recording from Twilio"""
-    print("\n📨 RECORDING RECEIVED!")
+    """Receive recording from Twilio and transcribe"""
+    print("\n📨 RECORDING CALLBACK RECEIVED!")
     data = dict(request.form)
     print(json.dumps(data, indent=2))
     
     recording_url = data.get('RecordingUrl')
     call_sid = data.get('CallSid')
+    recording_sid = data.get('RecordingSid')
+    recording_duration = data.get('RecordingDuration')
     
     if recording_url and DEEPGRAM_API_KEY:
         try:
-            print("🔄 Sending to Deepgram...")
+            print("🔄 Sending to Deepgram for transcription...")
             response = requests.post(
                 'https://api.deepgram.com/v1/listen',
                 headers={'Authorization': f'token {DEEPGRAM_API_KEY}'},
-                params={'punctuate': True, 'model': 'nova-2'},
+                params={
+                    'punctuate': True,
+                    'model': 'nova-2',
+                    'diarize': True,
+                    'dual_channel': True
+                },
                 json={"url": recording_url},
-                timeout=60
+                timeout=120
             )
+            
             if response.status_code == 200:
                 result = response.json()
-                transcript = result['results']['channels'][0]['alternatives'][0]['transcript']
-                transcripts[call_sid] = transcript
-                print(f"📝 Transcript: {transcript}")
+                try:
+                    transcript = result['results']['channels'][0]['alternatives'][0]['transcript']
+                    transcripts[call_sid or recording_sid] = {
+                        'text': transcript,
+                        'recording_url': recording_url,
+                        'duration': recording_duration,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                    print(f"📝 Transcript: {transcript}")
+                except Exception as e:
+                    print(f"⚠️ Could not extract transcript: {e}")
             else:
                 print(f"❌ Deepgram error: {response.status_code}")
                 print(response.text)
@@ -238,16 +232,42 @@ def recording_callback():
     
     return "OK", 200
 
+# ============================================
+# GET TRANSCRIPTS
+# ============================================
 @app.route('/transcripts')
 def get_transcripts():
     return jsonify(transcripts)
 
+# ============================================
+# GET CALL STATUS
+# ============================================
+@app.route('/call-status/<call_sid>')
+def get_call_status(call_sid):
+    """Get the status of a call"""
+    if not twilio_client:
+        return jsonify({"error": "Twilio client not initialized"}), 500
+    
+    try:
+        call = twilio_client.calls(call_sid).fetch()
+        return jsonify({
+            "status": call.status,
+            "duration": call.duration,
+            "sid": call.sid
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404
+
+# ============================================
+# HEALTH CHECK
+# ============================================
 @app.route('/ping')
 def ping():
     return jsonify({
         "status": "ok",
         "transcripts": len(transcripts),
-        "twilio_initialized": twilio_client is not None
+        "twilio_initialized": twilio_client is not None,
+        "base_url": BASE_URL
     })
 
 @app.route('/debug')
@@ -257,9 +277,10 @@ def debug():
         "account_sid": TWILIO_ACCOUNT_SID[:10] + "..." if TWILIO_ACCOUNT_SID else None,
         "phone_number": TWILIO_PHONE_NUMBER,
         "has_deepgram": bool(DEEPGRAM_API_KEY),
-        "base_url": BASE_URL
+        "base_url": BASE_URL,
+        "twiml_app_sid": TWIML_APP_SID[:10] + "..." if TWIML_APP_SID else None
     })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
