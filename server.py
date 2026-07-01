@@ -23,8 +23,8 @@ TWILIO_AUTH_TOKEN = "571ef423b558b2c6cf953e01c0653835"
 # ✅ CREATE AN API KEY IN TWILIO CONSOLE
 # Go to: https://console.twilio.com > Settings > API Keys & Tokens
 # Create a new API Key and copy the SID and Secret
-TWILIO_API_KEY_SID = "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"      # ✅ REPLACE THIS
-TWILIO_API_KEY_SECRET = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"     # ✅ REPLACE THIS
+TWILIO_API_KEY_SID = "SK184c8eee37a3f35fed669225cd7e1a0c"      # ✅ REPLACE THIS
+TWILIO_API_KEY_SECRET = "hjzaqwzS6jqoY5NtZWK6SCoDIaQQn6LD"     # ✅ REPLACE THIS
 
 TWILIO_PHONE_NUMBER = "+16187643399"
 DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
