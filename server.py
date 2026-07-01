@@ -1,4 +1,4 @@
-# server.py - Complete Rewrite for Two-Way Calling with Recording
+# server.py - Complete Fixed Version
 import os
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -19,13 +19,16 @@ CORS(app)
 # ============================================
 TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
 TWILIO_AUTH_TOKEN = "571ef423b558b2c6cf953e01c0653835"
+
+# ✅ CREATE AN API KEY IN TWILIO CONSOLE
+# Go to: https://console.twilio.com > Settings > API Keys & Tokens
+# Create a new API Key and copy the SID and Secret
+TWILIO_API_KEY_SID = "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"      # ✅ REPLACE THIS
+TWILIO_API_KEY_SECRET = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"     # ✅ REPLACE THIS
+
 TWILIO_PHONE_NUMBER = "+16187643399"
 DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
-
-# TwiML App SID - Create this in Twilio Console
-# Go to: Twilio Console > Voice > TwiML Apps > Create New
-# Voice URL: https://call-recording-backend.onrender.com/voice
-TWIML_APP_SID = "AP2bfc7c87d94a39a39a0ecb24cc99fec8"  # REPLACE WITH YOUR TWIML APP SID
+TWIML_APP_SID = "AP2bfc7c87d94a39a39a0ecb24cc99fec8"
 
 BASE_URL = "https://call-recording-backend.onrender.com"
 
@@ -64,27 +67,33 @@ def serve_agent():
 @app.route('/token', methods=['GET', 'POST'])
 def get_token():
     """Generate an Access Token for Twilio Voice JS SDK"""
-    identity = request.args.get('identity', 'agent')
-    
-    # Create Voice Grant
-    voice_grant = VoiceGrant(
-        outgoing_application_sid=TWIML_APP_SID,
-        incoming_allow=True
-    )
-    
-    # Create Access Token
-    token = AccessToken(
-        TWILIO_ACCOUNT_SID,
-        TWILIO_AUTH_TOKEN,
-        identity=identity,
-        ttl=3600
-    )
-    token.add_grant(voice_grant)
-    
-    return jsonify({
-        'token': token.to_jwt(),
-        'identity': identity
-    })
+    try:
+        identity = request.args.get('identity', 'agent')
+        
+        # Create Voice Grant
+        voice_grant = VoiceGrant(
+            outgoing_application_sid=TWIML_APP_SID,
+            incoming_allow=True
+        )
+        
+        # ✅ FIXED: Use API Key SID and Secret
+        token = AccessToken(
+            TWILIO_ACCOUNT_SID,
+            TWILIO_API_KEY_SID,      # ✅ API Key SID
+            TWILIO_API_KEY_SECRET,   # ✅ API Key Secret
+            identity=identity,
+            ttl=3600
+        )
+        token.add_grant(voice_grant)
+        
+        return jsonify({
+            'token': token.to_jwt(),
+            'identity': identity
+        })
+    except Exception as e:
+        print(f"❌ Token generation error: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 # ============================================
 # VOICE WEBHOOK - Twilio calls this for call handling
@@ -278,7 +287,8 @@ def debug():
         "phone_number": TWILIO_PHONE_NUMBER,
         "has_deepgram": bool(DEEPGRAM_API_KEY),
         "base_url": BASE_URL,
-        "twiml_app_sid": TWIML_APP_SID[:10] + "..." if TWIML_APP_SID else None
+        "twiml_app_sid": TWIML_APP_SID[:10] + "..." if TWIML_APP_SID else None,
+        "api_key_configured": bool(TWILIO_API_KEY_SID and TWILIO_API_KEY_SID != "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     })
 
 if __name__ == '__main__':
