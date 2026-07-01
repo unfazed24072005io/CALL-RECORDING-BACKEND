@@ -1,8 +1,8 @@
-# server.py - Complete Fixed Version
+# server.py - Complete Two-Way Call Recorder
 import os
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from twilio.twiml.voice_response import VoiceResponse, Say, Dial, Number
+from twilio.twiml.voice_response import VoiceResponse, Say, Dial
 from twilio.rest import Client
 from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
@@ -15,22 +15,22 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================
-# CREDENTIALS
+# CREDENTIALS - REPLACE WITH YOURS
 # ============================================
 TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
 TWILIO_AUTH_TOKEN = "571ef423b558b2c6cf953e01c0653835"
 
-# ✅ CREATE AN API KEY IN TWILIO CONSOLE
-# Go to: https://console.twilio.com > Settings > API Keys & Tokens
-# Create a new API Key and copy the SID and Secret
-TWILIO_API_KEY_SID = "SK184c8eee37a3f35fed669225cd7e1a0c"      # ✅ REPLACE THIS
-TWILIO_API_KEY_SECRET = "hjzaqwzS6jqoY5NtZWK6SCoDIaQQn6LD"     # ✅ REPLACE THIS
+# Create API Key in Twilio Console: Settings > API Keys & Tokens
+TWILIO_API_KEY_SID = "SK184c8eee37a3f35fed669225cd7e1a0c"  # Replace with your API Key SID
+TWILIO_API_KEY_SECRET = "hjzaqwzS6jqoY5NtZWK6SCoDIaQQn6LD"  # Replace with your API Key Secret
 
 TWILIO_PHONE_NUMBER = "+16187643399"
 DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
+
+# Create TwiML App in Twilio Console: Voice > TwiML Apps
 TWIML_APP_SID = "AP2bfc7c87d94a39a39a0ecb24cc99fec8"
 
-BASE_URL = "https://call-recording-backend.onrender.com"
+BASE_URL = "https://call-recording-backend.onrender.com"  # Change to http://localhost:5000 for local testing
 
 print("="*60)
 print("🚀 Starting Two-Way Call Recorder Server")
@@ -51,15 +51,24 @@ except Exception as e:
     print(f"❌ Twilio client initialization FAILED: {e}")
 
 transcripts = {}
-call_logs = {}
 
 # ============================================
 # SERVE STATIC FILES
 # ============================================
+@app.route('/')
+def index():
+    """Serve the main page"""
+    return send_from_directory('.', 'agent.html')
+
 @app.route('/agent')
 def serve_agent():
-    """Serve the agent dashboard HTML"""
+    """Serve the agent dashboard"""
     return send_from_directory('.', 'agent.html')
+
+@app.route('/node_modules/<path:filename>')
+def serve_node_modules(filename):
+    """Serve node_modules for Twilio SDK"""
+    return send_from_directory('node_modules', filename)
 
 # ============================================
 # GENERATE ACCESS TOKEN FOR BROWSER SDK
@@ -76,11 +85,11 @@ def get_token():
             incoming_allow=True
         )
         
-        # ✅ FIXED: Use API Key SID and Secret
+        # Create Access Token with API Key
         token = AccessToken(
             TWILIO_ACCOUNT_SID,
-            TWILIO_API_KEY_SID,      # ✅ API Key SID
-            TWILIO_API_KEY_SECRET,   # ✅ API Key Secret
+            TWILIO_API_KEY_SID,
+            TWILIO_API_KEY_SECRET,
             identity=identity,
             ttl=3600
         )
@@ -293,4 +302,4 @@ def debug():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)

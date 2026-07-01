@@ -11,14 +11,11 @@
         .header { background: #1a1a2e; color: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; }
         .header h1 { font-size: 20px; }
         .header .status { font-size: 12px; opacity: 0.7; margin-top: 4px; }
-        
         .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .card h3 { margin-bottom: 12px; color: #1a1a2e; }
-        
         .input-group { display: flex; gap: 10px; margin-bottom: 12px; }
         .input-group input { flex: 1; padding: 12px 16px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; }
         .input-group input:focus { border-color: #1a73e8; outline: none; }
-        
         .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%; }
         .btn-primary { background: #1a73e8; color: white; }
         .btn-primary:hover { background: #1557b0; }
@@ -26,27 +23,18 @@
         .btn-danger { background: #dc3545; color: white; }
         .btn-danger:hover { background: #c62828; }
         .btn-success { background: #34a853; color: white; }
-        
         .call-status { padding: 12px; border-radius: 8px; margin-top: 12px; text-align: center; font-weight: 600; }
         .call-status.idle { background: #e9ecef; color: #6c757d; }
         .call-status.ringing { background: #fff3e0; color: #e65100; }
         .call-status.connected { background: #e8f5e9; color: #2e7d32; }
         .call-status.recording { background: #e3f2fd; color: #0d47a1; }
         .call-status.error { background: #ffebee; color: #c62828; }
-        
         .transcript-box { background: #f8f9fa; padding: 12px; border-radius: 8px; max-height: 200px; overflow-y: auto; font-size: 14px; line-height: 1.6; margin-top: 8px; }
         .log-box { background: #1a1a2e; color: #aed581; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; }
-        
         .device-status { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
         .device-badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
         .device-badge.on { background: #e8f5e9; color: #2e7d32; }
         .device-badge.off { background: #ffebee; color: #c62828; }
-        
-        .mic-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-        .mic-indicator.active { background: #34a853; animation: pulse 1s infinite; }
-        .mic-indicator.inactive { background: #999; }
-        
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -85,15 +73,15 @@
     </div>
 </div>
 
-<!-- Twilio Voice JS SDK -->
-<script src="https://media.twiliocdn.com/sdk/js/client/v2.3.0/twilio.min.js"></script>
+<!-- ✅ Use the local SDK from node_modules -->
+<script src="/node_modules/@twilio/voice-sdk/dist/twilio.js"></script>
 
 <script>
 // ============================================
 // CONFIGURATION
 // ============================================
 const CONFIG = {
-    BASE_URL: 'https://call-recording-backend.onrender.com',
+    BASE_URL: window.location.origin,  // Auto-detect: http://localhost:5000 or https://your-domain.com
 };
 
 // ============================================
@@ -102,6 +90,7 @@ const CONFIG = {
 let device = null;
 let currentCall = null;
 let isCallActive = false;
+let deviceReady = false;
 
 // ============================================
 // DOM References
@@ -146,33 +135,38 @@ async function initDevice() {
     try {
         addLog('🔄 Initializing Twilio device...');
         
+        // ✅ Check if SDK is loaded
+        if (typeof Twilio === 'undefined') {
+            addLog('⏳ Waiting for Twilio SDK to load...');
+            setTimeout(initDevice, 2000);
+            return;
+        }
+        
         const token = await fetchToken();
         if (!token) {
             addLog('❌ No token received');
             return;
         }
         
-        // ✅ Check if Twilio is defined
-        if (typeof Twilio === 'undefined') {
-            addLog('❌ Twilio SDK not loaded. Check internet connection.');
-            return;
-        }
-        
+        // ✅ Use the Device class
         device = new Twilio.Device(token, {
             logLevel: 1,
-            codecPreferences: ['opus', 'pcmu']
+            codecPreferences: ['opus', 'pcmu'],
+            allowIncomingWhileBusy: true,
         });
         
         // Device event handlers
         device.on('ready', () => {
             addLog('✅ Device ready!');
             deviceStatus.textContent = '🟢 Device: Ready';
+            deviceReady = true;
             callBtn.disabled = false;
         });
         
         device.on('error', (error) => {
             addLog('❌ Device error: ' + error.message);
             deviceStatus.textContent = '🔴 Device: Error';
+            deviceReady = false;
             callBtn.disabled = true;
         });
         
@@ -187,6 +181,7 @@ async function initDevice() {
     } catch (error) {
         addLog('❌ Device initialization failed: ' + error.message);
         deviceStatus.textContent = '🔴 Device: Error';
+        setTimeout(initDevice, 3000);
     }
 }
 
@@ -231,7 +226,7 @@ async function makeCall() {
         return;
     }
     
-    if (!device) {
+    if (!deviceReady || !device) {
         addLog('❌ Device not ready');
         return;
     }
@@ -374,7 +369,7 @@ fetchTranscript();
 // Auto-refresh transcript every 10 seconds
 setInterval(fetchTranscript, 10000);
 
-// Initialize Twilio device
+// Initialize Twilio device after SDK loads
 setTimeout(() => {
     initDevice();
 }, 1000);

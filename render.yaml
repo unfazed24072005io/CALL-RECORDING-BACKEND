@@ -2,14 +2,22 @@ services:
   - type: web
     name: call-recorder-backend
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install -r requirements.txt
+      npm install @twilio/voice-sdk
     startCommand: gunicorn server:app
     envVars:
       - key: TWILIO_ACCOUNT_SID
         value: AC7157ac32a7c1840500f153d3b71f9979
       - key: TWILIO_AUTH_TOKEN
-        value: c2e7a8036607d884cdd82c8beecfe3c0
+        value: 571ef423b558b2c6cf953e01c0653835
       - key: TWILIO_PHONE_NUMBER
         value: +16187643399
       - key: DEEPGRAM_API_KEY
         value: c50f3cfb98d6b3586fe819f36c72d8536789450f
+      - key: TWILIO_API_KEY_SID
+        value: SK184c8eee37a3f35fed669225cd7e1a0c  # Replace with your API Key SID
+      - key: TWILIO_API_KEY_SECRET
+        value: hjzaqwzS6jqoY5NtZWK6SCoDIaQQn6LD  # Replace with your API Key Secret
+      - key: TWIML_APP_SID
+        value: AP2bfc7c87d94a39a39a0ecb24cc99fec8
