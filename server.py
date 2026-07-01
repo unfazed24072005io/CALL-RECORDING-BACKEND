@@ -21,8 +21,8 @@ TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
 TWILIO_AUTH_TOKEN = "571ef423b558b2c6cf953e01c0653835"
 
 # Create API Key in Twilio Console: Settings > API Keys & Tokens
-TWILIO_API_KEY_SID = "SK184c8eee37a3f35fed669225cd7e1a0c"  # Replace with your API Key SID
-TWILIO_API_KEY_SECRET = "hjzaqwzS6jqoY5NtZWK6SCoDIaQQn6LD"  # Replace with your API Key Secret
+TWILIO_API_KEY_SID = "SK184c8eee37a3f35fed669225cd7e1a0c"
+TWILIO_API_KEY_SECRET = "hjzaqwzS6jqoY5NtZWK6SCoDIaQQn6LD"
 
 TWILIO_PHONE_NUMBER = "+16187643399"
 DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
@@ -30,7 +30,7 @@ DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
 # Create TwiML App in Twilio Console: Voice > TwiML Apps
 TWIML_APP_SID = "AP2bfc7c87d94a39a39a0ecb24cc99fec8"
 
-BASE_URL = "https://call-recording-backend.onrender.com"  # Change to http://localhost:5000 for local testing
+BASE_URL = "http://localhost:5000"
 
 print("="*60)
 print("🚀 Starting Two-Way Call Recorder Server")
@@ -69,6 +69,12 @@ def serve_agent():
 def serve_node_modules(filename):
     """Serve node_modules for Twilio SDK"""
     return send_from_directory('node_modules', filename)
+
+# ✅ ADD THIS ROUTE
+@app.route('/twilio.min.js')
+def serve_twilio_sdk():
+    """Serve the local Twilio SDK file"""
+    return send_from_directory('.', 'twilio.min.js')
 
 # ============================================
 # GENERATE ACCESS TOKEN FOR BROWSER SDK
@@ -144,7 +150,6 @@ def voice():
             recording_status_callback=BASE_URL + "/recording-callback",
             recording_status_callback_method="POST"
         )
-        # Forward to your agent's browser client
         dial.client('agent')
         response.append(dial)
     
@@ -168,7 +173,6 @@ def make_call():
     
     print(f"\n📞 Browser initiating call to: {phone_number}")
     
-    # Create the TwiML response for the call
     response = VoiceResponse()
     response.say("Connecting your call. This call may be recorded.", voice="Polly.Joanna")
     
@@ -183,7 +187,6 @@ def make_call():
     dial.number(phone_number)
     response.append(dial)
     
-    # Store the TwiML for this call
     call = twilio_client.calls.create(
         twiml=str(response),
         to=phone_number,

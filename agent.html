@@ -1,8 +1,7 @@
-<!-- agent.html - Two-Way Calling Dashboard -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Agent Dashboard - Two-Way Calling</title>
+    <title>Agent - Working Version</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -22,58 +21,88 @@
         .btn-primary:disabled { background: #999; cursor: not-allowed; }
         .btn-danger { background: #dc3545; color: white; }
         .btn-danger:hover { background: #c62828; }
-        .btn-success { background: #34a853; color: white; }
         .call-status { padding: 12px; border-radius: 8px; margin-top: 12px; text-align: center; font-weight: 600; }
         .call-status.idle { background: #e9ecef; color: #6c757d; }
         .call-status.ringing { background: #fff3e0; color: #e65100; }
         .call-status.connected { background: #e8f5e9; color: #2e7d32; }
-        .call-status.recording { background: #e3f2fd; color: #0d47a1; }
         .call-status.error { background: #ffebee; color: #c62828; }
-        .transcript-box { background: #f8f9fa; padding: 12px; border-radius: 8px; max-height: 200px; overflow-y: auto; font-size: 14px; line-height: 1.6; margin-top: 8px; }
-        .log-box { background: #1a1a2e; color: #aed581; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; }
-        .device-status { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-        .device-badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-        .device-badge.on { background: #e8f5e9; color: #2e7d32; }
-        .device-badge.off { background: #ffebee; color: #c62828; }
+        .call-status.ready { background: #e3f2fd; color: #0d47a1; }
+        .log-box { background: #1a1a2e; color: #aed581; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; margin: 3px; }
+        .badge-success { background: #e8f5e9; color: #2e7d32; }
+        .badge-error { background: #ffebee; color: #c62828; }
+        .badge-warning { background: #fff3e0; color: #e65100; }
+        .badge-info { background: #e3f2fd; color: #0d47a1; }
+        .badge-ready { background: #81c784; color: #1b5e20; }
+        .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .actions button { flex: 1; min-width: 80px; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn-success { background: #34a853; color: white; }
+        .click-prompt { 
+            background: #e3f2fd; 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 12px; 
+            text-align: center;
+            font-weight: 600;
+            color: #0d47a1;
+            border: 2px dashed #0d47a1;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .click-prompt:hover {
+            background: #bbdefb;
+        }
+        .click-prompt.success {
+            background: #e8f5e9;
+            border-color: #2e7d32;
+            color: #2e7d32;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <h1>📞 Agent Call Dashboard</h1>
+        <h1>📞 Agent - Working</h1>
         <div class="status" id="deviceStatus">🔴 Device: Not Ready</div>
+        <div style="margin-top:10px;">
+            <span class="badge badge-info" id="sdkBadge">📦 SDK: Checking...</span>
+            <span class="badge badge-info" id="tokenBadge">🔑 Token: Unknown</span>
+            <span class="badge badge-info" id="audioBadge">🎵 Audio: Suspended</span>
+            <span class="badge badge-info" id="stateBadge">📊 State: Idle</span>
+        </div>
     </div>
 
     <div class="card">
+        <div class="click-prompt" id="clickPrompt" onclick="resumeAudio()">
+            👆 <strong>Click here</strong> or anywhere on the page to enable audio
+        </div>
         <h3>📤 Make a Call</h3>
         <div class="input-group">
-            <input type="text" id="phoneInput" placeholder="+919583955784" />
-            <button class="btn btn-primary" id="callBtn" onclick="makeCall()">📞 Call</button>
+            <input type="text" id="phoneInput" placeholder="+1234567890" />
+            <button class="btn btn-primary" id="callBtn" onclick="makeCall()" disabled>📞 Call</button>
         </div>
         <button class="btn btn-danger" id="hangupBtn" onclick="hangup()" style="display:none;">🔴 Hang Up</button>
-        
         <div id="callStatus" class="call-status idle">Ready to call</div>
         
-        <div class="device-status">
-            <span class="device-badge" id="micBadge">🎤 Microphone: Off</span>
-            <span class="device-badge" id="speakerBadge">🔊 Speaker: Off</span>
+        <div class="actions">
+            <button class="btn-warning" onclick="initDevice()">🔄 Reconnect</button>
+            <button class="btn-success" onclick="resumeAudio()">🎵 Resume Audio</button>
+            <button class="btn-warning" onclick="forceDeviceReady()">⚡ Force Ready</button>
         </div>
-    </div>
-
-    <div class="card">
-        <h3>📝 Transcript</h3>
-        <div id="transcriptBox" class="transcript-box">Waiting for transcript...</div>
-        <button onclick="fetchTranscript()" style="margin-top:8px;padding:8px 16px;background:#34a853;color:white;border:none;border-radius:6px;cursor:pointer;">🔄 Refresh</button>
     </div>
 
     <div class="card">
         <h3>📋 Logs</h3>
         <div id="logBox" class="log-box">⏳ Initializing...</div>
+        <button onclick="clearLogs()" style="margin-top:8px;padding:4px 12px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">🗑️ Clear</button>
     </div>
 </div>
 
-<!-- ✅ Use the local SDK from node_modules -->
+<!-- ============================================ -->
+<!-- LOAD SDK FROM LOCAL FILE -->
+<!-- ============================================ -->
 <script src="/twilio.min.js"></script>
 
 <script>
@@ -81,7 +110,7 @@
 // CONFIGURATION
 // ============================================
 const CONFIG = {
-    BASE_URL: window.location.origin,  // Auto-detect: http://localhost:5000 or https://your-domain.com
+    BASE_URL: window.location.origin,
 };
 
 // ============================================
@@ -89,29 +118,135 @@ const CONFIG = {
 // ============================================
 let device = null;
 let currentCall = null;
-let isCallActive = false;
 let deviceReady = false;
+let deviceRegistered = false;
 
 // ============================================
-// DOM References
+// DOM REFS
 // ============================================
-const phoneInput = document.getElementById('phoneInput');
+const deviceStatus = document.getElementById('deviceStatus');
 const callBtn = document.getElementById('callBtn');
 const hangupBtn = document.getElementById('hangupBtn');
-const callStatus = document.getElementById('callStatus');
-const transcriptBox = document.getElementById('transcriptBox');
+const phoneInput = document.getElementById('phoneInput');
 const logBox = document.getElementById('logBox');
-const deviceStatus = document.getElementById('deviceStatus');
-const micBadge = document.getElementById('micBadge');
-const speakerBadge = document.getElementById('speakerBadge');
+const sdkBadge = document.getElementById('sdkBadge');
+const tokenBadge = document.getElementById('tokenBadge');
+const audioBadge = document.getElementById('audioBadge');
+const stateBadge = document.getElementById('stateBadge');
+const callStatus = document.getElementById('callStatus');
+const clickPrompt = document.getElementById('clickPrompt');
 
 // ============================================
 // LOGGING
 // ============================================
-function addLog(msg) {
+function addLog(msg, type = 'info') {
     const time = new Date().toLocaleTimeString();
-    logBox.innerHTML = `[${time}] ${msg}\n${logBox.innerHTML}`;
+    const colors = {
+        info: '#aed581',
+        error: '#ef9a9a',
+        warning: '#ffcc80',
+        success: '#81c784',
+        debug: '#90caf9'
+    };
+    const color = colors[type] || '#aed581';
+    logBox.innerHTML = `<span style="color:${color}">[${time}] ${msg}</span>\n${logBox.innerHTML}`;
     console.log(`[${time}] ${msg}`);
+}
+
+function clearLogs() {
+    logBox.innerHTML = '📋 Logs cleared';
+}
+
+// ============================================
+// FORCE DEVICE READY (Emergency fix)
+// ============================================
+function forceDeviceReady() {
+    addLog('⚡ Force setting device to ready...', 'warning');
+    deviceReady = true;
+    deviceStatus.textContent = '🟢 Device: Ready (Forced)';
+    deviceStatus.className = 'call-status ready';
+    callBtn.disabled = false;
+    callStatus.textContent = 'Ready to call';
+    callStatus.className = 'call-status idle';
+    addLog('✅ Device force-ready!', 'success');
+}
+
+// ============================================
+// RESUME AUDIO CONTEXT
+// ============================================
+async function resumeAudio() {
+    addLog('🎵 Attempting to resume audio...', 'debug');
+    
+    try {
+        // Try to resume Twilio's audio context
+        if (typeof Twilio !== 'undefined' && Twilio.Device && Twilio.Device._audioContext) {
+            const ctx = Twilio.Device._audioContext;
+            if (ctx) {
+                addLog(`🎵 AudioContext state: ${ctx.state}`, 'debug');
+                if (ctx.state === 'suspended') {
+                    await ctx.resume();
+                    addLog('✅ AudioContext resumed!', 'success');
+                    audioBadge.textContent = '🎵 Audio: Running ✅';
+                    audioBadge.className = 'badge badge-success';
+                    clickPrompt.textContent = '✅ Audio is now enabled!';
+                    clickPrompt.className = 'click-prompt success';
+                    
+                    // Check if device is ready now
+                    if (device && deviceRegistered && !deviceReady) {
+                        addLog('🔄 Device is registered - marking as ready!', 'success');
+                        deviceReady = true;
+                        deviceStatus.textContent = '🟢 Device: Ready';
+                        deviceStatus.className = 'call-status ready';
+                        callBtn.disabled = false;
+                        callStatus.textContent = 'Ready to call';
+                        callStatus.className = 'call-status idle';
+                        addLog('✅✅✅ DEVICE READY! ✅✅✅', 'success');
+                    }
+                    return true;
+                } else if (ctx.state === 'running') {
+                    addLog('✅ AudioContext already running', 'success');
+                    audioBadge.textContent = '🎵 Audio: Running ✅';
+                    audioBadge.className = 'badge badge-success';
+                    return true;
+                }
+            }
+        }
+        
+        // Fallback: try to create a new audio context
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+                addLog('✅ New AudioContext created and resumed', 'success');
+                audioBadge.textContent = '🎵 Audio: Running ✅';
+                audioBadge.className = 'badge badge-success';
+                return true;
+            }
+        } catch (e) {
+            addLog(`⚠️ Could not create AudioContext: ${e.message}`, 'warning');
+        }
+        
+    } catch (error) {
+        addLog(`❌ Audio resume error: ${error.message}`, 'error');
+    }
+    return false;
+}
+
+// ============================================
+// CHECK SDK
+// ============================================
+function checkSDK() {
+    if (typeof Twilio !== 'undefined' && typeof Twilio.Device !== 'undefined') {
+        addLog('✅ Twilio SDK loaded!', 'success');
+        sdkBadge.textContent = '📦 SDK: Loaded ✅';
+        sdkBadge.className = 'badge badge-success';
+        return true;
+    } else {
+        addLog('❌ Twilio SDK NOT loaded', 'error');
+        sdkBadge.textContent = '📦 SDK: Not Loaded ❌';
+        sdkBadge.className = 'badge badge-error';
+        return false;
+    }
 }
 
 // ============================================
@@ -119,69 +254,128 @@ function addLog(msg) {
 // ============================================
 async function fetchToken() {
     try {
-        const response = await fetch(`${CONFIG.BASE_URL}/token`);
+        addLog('🔄 Fetching token...', 'debug');
+        tokenBadge.textContent = '🔑 Token: Fetching...';
+        tokenBadge.className = 'badge badge-warning';
+        
+        const response = await fetch(`${CONFIG.BASE_URL}/token?identity=agent&t=${Date.now()}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
         const data = await response.json();
+        addLog(`✅ Token received (${data.token.length} chars)`, 'success');
+        tokenBadge.textContent = '🔑 Token: OK ✅';
+        tokenBadge.className = 'badge badge-success';
+        
         return data.token;
     } catch (error) {
-        addLog('❌ Failed to fetch token: ' + error.message);
+        addLog(`❌ Token fetch failed: ${error.message}`, 'error');
+        tokenBadge.textContent = '🔑 Token: Error ❌';
+        tokenBadge.className = 'badge badge-error';
         return null;
     }
 }
 
 // ============================================
-// INITIALIZE TWILIO DEVICE
+// INITIALIZE DEVICE
 // ============================================
 async function initDevice() {
+    addLog('🚀 Initializing Twilio Device...', 'info');
+    deviceStatus.textContent = '🟡 Device: Connecting...';
+    callStatus.className = 'call-status ringing';
+    callStatus.textContent = 'Connecting...';
+    deviceReady = false;
+    deviceRegistered = false;
+    
+    // Check SDK first
+    if (!checkSDK()) {
+        addLog('❌ Cannot initialize: SDK not loaded', 'error');
+        return;
+    }
+    
     try {
-        addLog('🔄 Initializing Twilio device...');
-        
-        // ✅ Check if SDK is loaded
-        if (typeof Twilio === 'undefined') {
-            addLog('⏳ Waiting for Twilio SDK to load...');
-            setTimeout(initDevice, 2000);
-            return;
-        }
-        
+        // Get token
         const token = await fetchToken();
         if (!token) {
-            addLog('❌ No token received');
-            return;
+            throw new Error('No token received');
         }
         
-        // ✅ Use the Device class
+        // Clean up old device
+        if (device) {
+            addLog('🧹 Cleaning up old device...', 'debug');
+            device.destroy();
+            device = null;
+        }
+        
+        // Create new device
+        addLog('🔧 Creating Device...', 'debug');
         device = new Twilio.Device(token, {
             logLevel: 1,
-            codecPreferences: ['opus', 'pcmu'],
             allowIncomingWhileBusy: true,
+            codecPreferences: ['opus', 'pcmu']
         });
+        addLog('✅ Device created', 'success');
         
-        // Device event handlers
+        // Set up event handlers
         device.on('ready', () => {
-            addLog('✅ Device ready!');
-            deviceStatus.textContent = '🟢 Device: Ready';
+            addLog('✅✅✅ DEVICE READY! ✅✅✅', 'success');
             deviceReady = true;
+            deviceRegistered = true;
+            deviceStatus.textContent = '🟢 Device: Ready';
+            deviceStatus.className = 'call-status ready';
             callBtn.disabled = false;
+            callStatus.textContent = 'Ready to call';
+            callStatus.className = 'call-status idle';
+            stateBadge.textContent = '📊 State: Ready';
+            stateBadge.className = 'badge badge-success';
         });
         
         device.on('error', (error) => {
-            addLog('❌ Device error: ' + error.message);
+            addLog(`❌ Device error: ${error.message}`, 'error');
             deviceStatus.textContent = '🔴 Device: Error';
+            deviceStatus.className = 'call-status error';
             deviceReady = false;
             callBtn.disabled = true;
         });
         
         device.on('incoming', (call) => {
-            addLog('📞 Incoming call from: ' + call.parameters.From);
+            addLog(`📞 Incoming call from: ${call.parameters.From}`, 'info');
             acceptCall(call);
         });
         
-        device.register();
-        addLog('⏳ Registering device...');
+        // Register
+        addLog('🔗 Registering device...', 'debug');
+        await device.register();
+        addLog('✅ Registration initiated', 'success');
+        deviceRegistered = true;
+        stateBadge.textContent = '📊 State: Registered';
+        stateBadge.className = 'badge badge-warning';
+        
+        // Check audio context state
+        setTimeout(() => {
+            try {
+                if (typeof Twilio !== 'undefined' && Twilio.Device && Twilio.Device._audioContext) {
+                    const ctx = Twilio.Device._audioContext;
+                    if (ctx) {
+                        addLog(`🎵 AudioContext state: ${ctx.state}`, 'debug');
+                        audioBadge.textContent = `🎵 Audio: ${ctx.state}`;
+                        if (ctx.state === 'suspended') {
+                            audioBadge.className = 'badge badge-warning';
+                            addLog('💡 Click the page to resume audio', 'info');
+                        } else if (ctx.state === 'running') {
+                            audioBadge.className = 'badge badge-success';
+                        }
+                    }
+                }
+            } catch (e) {}
+        }, 1000);
         
     } catch (error) {
-        addLog('❌ Device initialization failed: ' + error.message);
+        addLog(`❌ Init error: ${error.message}`, 'error');
         deviceStatus.textContent = '🔴 Device: Error';
-        setTimeout(initDevice, 3000);
+        deviceStatus.className = 'call-status error';
     }
 }
 
@@ -193,31 +387,25 @@ function acceptCall(call) {
     call.accept();
     
     call.on('accept', () => {
-        addLog('✅ Call accepted');
-        setCallStatus('connected', 'Connected - Recording');
-        isCallActive = true;
-        showHangup(true);
+        addLog('✅ Call accepted', 'success');
+        callStatus.textContent = 'Connected';
+        callStatus.className = 'call-status connected';
+        hangupBtn.style.display = 'block';
+        callBtn.disabled = true;
     });
     
     call.on('disconnect', () => {
-        addLog('📞 Call ended');
-        setCallStatus('idle', 'Call ended');
-        isCallActive = false;
-        showHangup(false);
+        addLog('📞 Call ended', 'info');
+        callStatus.textContent = 'Call ended';
+        callStatus.className = 'call-status idle';
+        hangupBtn.style.display = 'none';
+        callBtn.disabled = false;
         currentCall = null;
-        fetchTranscript();
-    });
-    
-    call.on('error', (error) => {
-        addLog('❌ Call error: ' + error.message);
-        setCallStatus('error', 'Error: ' + error.message);
-        isCallActive = false;
-        showHangup(false);
     });
 }
 
 // ============================================
-// MAKE OUTGOING CALL
+// MAKE CALL
 // ============================================
 async function makeCall() {
     const number = phoneInput.value.trim();
@@ -226,61 +414,52 @@ async function makeCall() {
         return;
     }
     
+    // Try to resume audio first
+    await resumeAudio();
+    
     if (!deviceReady || !device) {
-        addLog('❌ Device not ready');
+        addLog('❌ Device not ready - trying to reconnect...', 'error');
+        initDevice();
         return;
     }
     
-    addLog('📞 Dialing: ' + number);
-    setCallStatus('ringing', 'Ringing...');
+    addLog(`📞 Dialing: ${number}`, 'info');
+    callStatus.textContent = 'Ringing...';
+    callStatus.className = 'call-status ringing';
     callBtn.disabled = true;
-    callBtn.textContent = '⏳ Calling...';
     
     try {
-        const call = await device.connect({
-            params: {
-                To: number
-            }
+        currentCall = await device.connect({
+            params: { To: number }
         });
         
-        currentCall = call;
-        
-        call.on('accept', () => {
-            addLog('✅ Call connected!');
-            setCallStatus('connected', 'Connected - Recording');
-            isCallActive = true;
-            showHangup(true);
-            callBtn.textContent = '✅ Connected';
-            callBtn.className = 'btn btn-success';
+        currentCall.on('accept', () => {
+            addLog('✅ Call connected', 'success');
+            callStatus.textContent = 'Connected';
+            callStatus.className = 'call-status connected';
+            hangupBtn.style.display = 'block';
         });
         
-        call.on('disconnect', () => {
-            addLog('📞 Call disconnected');
-            setCallStatus('idle', 'Call ended');
-            isCallActive = false;
-            showHangup(false);
-            currentCall = null;
-            callBtn.textContent = '📞 Call';
-            callBtn.className = 'btn btn-primary';
+        currentCall.on('disconnect', () => {
+            addLog('📞 Call ended', 'info');
+            callStatus.textContent = 'Call ended';
+            callStatus.className = 'call-status idle';
+            hangupBtn.style.display = 'none';
             callBtn.disabled = false;
-            fetchTranscript();
+            currentCall = null;
         });
         
-        call.on('error', (error) => {
-            addLog('❌ Call error: ' + error.message);
-            setCallStatus('error', 'Error: ' + error.message);
-            isCallActive = false;
-            showHangup(false);
-            callBtn.textContent = '📞 Call';
-            callBtn.className = 'btn btn-primary';
+        currentCall.on('error', (error) => {
+            addLog(`❌ Call error: ${error.message}`, 'error');
+            callStatus.textContent = 'Error';
+            callStatus.className = 'call-status error';
             callBtn.disabled = false;
         });
         
     } catch (error) {
-        addLog('❌ Failed to connect: ' + error.message);
-        setCallStatus('error', 'Error: ' + error.message);
-        callBtn.textContent = '📞 Call';
-        callBtn.className = 'btn btn-primary';
+        addLog(`❌ Failed to call: ${error.message}`, 'error');
+        callStatus.textContent = 'Error';
+        callStatus.className = 'call-status error';
         callBtn.disabled = false;
     }
 }
@@ -290,94 +469,87 @@ async function makeCall() {
 // ============================================
 function hangup() {
     if (currentCall) {
-        addLog('🔴 Hanging up...');
+        addLog('🔴 Hanging up...', 'info');
         currentCall.disconnect();
-        showHangup(false);
-        callBtn.textContent = '📞 Call';
-        callBtn.className = 'btn btn-primary';
+        hangupBtn.style.display = 'none';
         callBtn.disabled = false;
-        setCallStatus('idle', 'Call ended');
+        callStatus.textContent = 'Call ended';
+        callStatus.className = 'call-status idle';
+        currentCall = null;
     }
 }
 
 // ============================================
-// FETCH TRANSCRIPT
+// GET MICROPHONE PERMISSION
 // ============================================
-async function fetchTranscript() {
-    try {
-        const response = await fetch(`${CONFIG.BASE_URL}/transcripts`);
-        const data = await response.json();
-        
-        const entries = Object.entries(data);
-        if (entries.length === 0) {
-            transcriptBox.textContent = 'No transcripts yet. Make a call and speak.';
-            return;
-        }
-        
-        let html = '';
-        for (const [sid, entry] of entries) {
-            const text = typeof entry === 'string' ? entry : entry.text || JSON.stringify(entry);
-            html += `<div style="border-bottom:1px solid #eee;padding:8px 0;">
-                <strong>Call ${sid.substring(0, 12)}...</strong><br>
-                ${text}
-            </div>`;
-        }
-        transcriptBox.innerHTML = html || 'No transcripts available';
-        
-    } catch (error) {
-        addLog('❌ Failed to fetch transcripts: ' + error.message);
-    }
-}
-
-// ============================================
-// UI HELPERS
-// ============================================
-function setCallStatus(type, text) {
-    callStatus.className = 'call-status ' + type;
-    callStatus.textContent = text;
-}
-
-function showHangup(show) {
-    hangupBtn.style.display = show ? 'block' : 'none';
-}
-
-// ============================================
-// DEVICE PERMISSIONS
-// ============================================
-async function checkPermissions() {
+async function getMicrophone() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        micBadge.textContent = '🎤 Microphone: On';
-        micBadge.className = 'device-badge on';
+        addLog('✅ Microphone: Available', 'success');
         stream.getTracks().forEach(track => track.stop());
+        return true;
     } catch (error) {
-        micBadge.textContent = '🎤 Microphone: Blocked';
-        micBadge.className = 'device-badge off';
-        addLog('⚠️ Microphone permission needed');
+        addLog(`⚠️ Microphone: ${error.message}`, 'warning');
+        return false;
     }
 }
+
+// ============================================
+// AUTO-RESUME ON ANY CLICK
+// ============================================
+document.addEventListener('click', function resumeOnClick() {
+    resumeAudio();
+}, { once: true });
+
+// Also resume on any button click
+document.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+        setTimeout(resumeAudio, 100);
+    });
+});
 
 // ============================================
 // INIT
 // ============================================
-addLog('🚀 Agent dashboard loading...');
-addLog(`📡 Backend: ${CONFIG.BASE_URL}`);
+async function initialize() {
+    addLog('🚀 Agent dashboard loading...', 'info');
+    addLog(`📡 Backend: ${CONFIG.BASE_URL}`, 'debug');
+    
+    // Check SDK
+    if (!checkSDK()) {
+        addLog('⏳ Waiting for SDK to load...', 'warning');
+        setTimeout(() => {
+            if (typeof Twilio !== 'undefined' && typeof Twilio.Device !== 'undefined') {
+                addLog('✅ SDK loaded!', 'success');
+                initDevice();
+            } else {
+                addLog('❌ SDK still not loaded', 'error');
+            }
+        }, 2000);
+        return;
+    }
+    
+    // Check microphone
+    await getMicrophone();
+    
+    // Initialize device
+    setTimeout(initDevice, 500);
+}
 
-checkPermissions();
-fetchTranscript();
-
-// Auto-refresh transcript every 10 seconds
-setInterval(fetchTranscript, 10000);
-
-// Initialize Twilio device after SDK loads
-setTimeout(() => {
-    initDevice();
-}, 1000);
-
-// Listen for Enter key
+// Enter key for phone input
 phoneInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') makeCall();
 });
+
+// Start
+initialize();
+
+// Handle unhandled errors
+window.addEventListener('error', (event) => {
+    addLog(`⚠️ Unhandled error: ${event.message}`, 'error');
+});
+
+addLog('💡 Click the page or "Resume Audio" button to enable audio', 'info');
 </script>
 
 </body>
