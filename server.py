@@ -12,25 +12,38 @@ import traceback
 from datetime import datetime
 
 # ============================================
-# FIREBASE ADMIN SDK - NEW ADDITION
+# FIREBASE ADMIN SDK - RENDER COMPATIBLE
 # ============================================
 try:
     import firebase_admin
     from firebase_admin import credentials, firestore
+    import json as json_module
     
-    # Check if service account key exists
-    if os.path.exists("serviceAccountKey.json"):
+    # Try environment variable first (for Render)
+    firebase_creds = os.getenv('FIREBASE_SERVICE_ACCOUNT')
+    if firebase_creds:
+        try:
+            cred_dict = json_module.loads(firebase_creds)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            db = firestore.client()
+            print("✅ Firebase connected via environment variable!")
+        except Exception as e:
+            db = None
+            print(f"❌ Firebase env var error: {e}")
+    # Fallback to local file (for local development)
+    elif os.path.exists("serviceAccountKey.json"):
         cred = credentials.Certificate("serviceAccountKey.json")
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print("✅ Firebase connected - recordings will be saved!")
+        print("✅ Firebase connected via local file!")
     else:
         db = None
-        print("⚠️ serviceAccountKey.json not found - recordings NOT saved to Firebase")
-        print("   Get it from: Firebase Console > Project Settings > Service Accounts")
+        print("⚠️ No Firebase credentials found - recordings NOT saved")
+        print("   Set FIREBASE_SERVICE_ACCOUNT env var or add serviceAccountKey.json")
 except ImportError:
     db = None
-    print("⚠️ firebase-admin not installed - recordings NOT saved to Firebase")
+    print("⚠️ firebase-admin not installed - recordings NOT saved")
     print("   Install with: pip install firebase-admin")
 except Exception as e:
     db = None
@@ -55,7 +68,13 @@ DEEPGRAM_API_KEY = "c50f3cfb98d6b3586fe819f36c72d8536789450f"
 # Create TwiML App in Twilio Console: Voice > TwiML Apps
 TWIML_APP_SID = "AP2bfc7c87d94a39a39a0ecb24cc99fec8"
 
-BASE_URL = "http://localhost:5000"
+# ============================================
+# BASE_URL - AUTO DETECT FOR RENDER
+# ============================================
+if os.environ.get('RENDER'):
+    BASE_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://call-recording-backend.onrender.com')
+else:
+    BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')
 
 print("="*60)
 print("🚀 Starting Two-Way Call Recorder Server")
@@ -241,7 +260,7 @@ def recording_callback():
     recording_sid = data.get('RecordingSid')
     recording_duration = data.get('RecordingDuration')
     
-    # ===== NEW: SAVE RECORDING SID TO FIREBASE =====
+    # ===== SAVE RECORDING SID TO FIREBASE =====
     if call_sid and recording_sid and db is not None:
         try:
             # Update the call document with recording SID
@@ -280,7 +299,7 @@ def recording_callback():
                 try:
                     transcript = result['results']['channels'][0]['alternatives'][0]['transcript']
                     
-                    # ===== NEW: Also save transcript to Firebase =====
+                    # ===== SAVE TRANSCRIPT TO FIREBASE =====
                     if call_sid and transcript and db is not None:
                         try:
                             db.collection('calls').document(call_sid).update({
