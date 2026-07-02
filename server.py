@@ -246,7 +246,7 @@ def make_call():
     })
 
 # ============================================
-# RECORDING CALLBACK - UPDATED WITH FIREBASE SAVE
+# RECORDING CALLBACK - UPDATED WITH FIXES
 # ============================================
 @app.route('/recording-callback', methods=['POST'])
 def recording_callback():
@@ -260,24 +260,38 @@ def recording_callback():
     recording_sid = data.get('RecordingSid')
     recording_duration = data.get('RecordingDuration')
     
-    # ===== SAVE RECORDING SID TO FIREBASE =====
+    # ===== SAVE RECORDING SID TO FIREBASE (with create if not exists) =====
     if call_sid and recording_sid and db is not None:
         try:
-            # Update the call document with recording SID
-            db.collection('calls').document(call_sid).update({
-                'recordingSid': recording_sid,
-                'recordingUrl': recording_url,
-                'recordingDuration': int(recording_duration) if recording_duration else None,
-                'hasRecording': True,
-                'updatedAt': firestore.SERVER_TIMESTAMP
-            })
-            print(f"✅ Saved recording SID {recording_sid} to call {call_sid} in Firebase")
+            doc_ref = db.collection('calls').document(call_sid)
+            doc = doc_ref.get()
+            
+            if doc.exists:
+                doc_ref.update({
+                    'recordingSid': recording_sid,
+                    'recordingUrl': recording_url,
+                    'recordingDuration': int(recording_duration) if recording_duration else None,
+                    'hasRecording': True,
+                    'updatedAt': firestore.SERVER_TIMESTAMP
+                })
+                print(f"✅ Updated recording SID {recording_sid} for call {call_sid}")
+            else:
+                doc_ref.set({
+                    'callSid': call_sid,
+                    'recordingSid': recording_sid,
+                    'recordingUrl': recording_url,
+                    'recordingDuration': int(recording_duration) if recording_duration else None,
+                    'hasRecording': True,
+                    'createdAt': firestore.SERVER_TIMESTAMP,
+                    'updatedAt': firestore.SERVER_TIMESTAMP
+                })
+                print(f"✅ Created new call document with recording SID {recording_sid}")
         except Exception as e:
             print(f"❌ Failed to save recording to Firebase: {e}")
     elif call_sid and recording_sid:
         print(f"⚠️ Firebase not available - recording SID {recording_sid} not saved")
     
-    # ===== TRANSCRIPTION - UNCHANGED =====
+    # ===== TRANSCRIPTION - UPDATED DEEPGRAM PARAMS =====
     if recording_url and DEEPGRAM_API_KEY:
         try:
             print("🔄 Sending to Deepgram for transcription...")
@@ -285,10 +299,10 @@ def recording_callback():
                 'https://api.deepgram.com/v1/listen',
                 headers={'Authorization': f'token {DEEPGRAM_API_KEY}'},
                 params={
-                    'punctuate': True,
+                    'punctuate': 'true',
                     'model': 'nova-2',
-                    'diarize': True,
-                    'dual_channel': True
+                    'diarize': 'true',
+                    'dual_channel': 'true'
                 },
                 json={"url": recording_url},
                 timeout=120
@@ -302,7 +316,8 @@ def recording_callback():
                     # ===== SAVE TRANSCRIPT TO FIREBASE =====
                     if call_sid and transcript and db is not None:
                         try:
-                            db.collection('calls').document(call_sid).update({
+                            doc_ref = db.collection('calls').document(call_sid)
+                            doc_ref.update({
                                 'transcript': transcript,
                                 'hasTranscript': True,
                                 'transcriptUpdatedAt': firestore.SERVER_TIMESTAMP
