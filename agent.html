@@ -1204,7 +1204,7 @@ async function viewResponses(surveyId) {
 }
 
 // ============================================
-// CALL LOGGING TO FIREBASE
+// CALL LOGGING TO FIREBASE - UPDATED WITH RECORDING SID
 // ============================================
 async function logCallToFirebase(callData) {
     if (!currentUser) {
@@ -1271,6 +1271,7 @@ async function logCallToFirebase(callData) {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
+        // Add to 'calls' collection
         await db.collection('calls').add(callRecord);
         addLog(`Call logged to Firebase: ${callData.leadPhone} (${callData.status})`, 'success');
         
@@ -1281,7 +1282,7 @@ async function logCallToFirebase(callData) {
 }
 
 // ============================================
-// TWILIO
+// TWILIO - UPDATED WITH RECORDING SID FETCHING
 // ============================================
 const CONFIG = { BASE_URL: window.location.origin };
 function forceDeviceReady() {
@@ -1397,7 +1398,8 @@ async function initDevice() {
                     status: 'answered',
                     startTime: new Date(callStartTime || Date.now()).toISOString(),
                     endTime: new Date().toISOString(),
-                    duration: duration
+                    duration: duration,
+                    recordingSid: null // Will be updated by server callback
                 });
                 currentCall = null;
                 callStartTime = null;
@@ -1456,7 +1458,8 @@ async function makeCall() {
                 status: 'answered',
                 startTime: new Date(callStartTime || Date.now()).toISOString(),
                 endTime: new Date().toISOString(),
-                duration: duration
+                duration: duration,
+                recordingSid: null // Will be updated by server callback
             });
             currentCall = null;
             callStartTime = null;
@@ -1474,7 +1477,8 @@ async function makeCall() {
                 startTime: new Date(callStartTime || Date.now()).toISOString(),
                 endTime: new Date().toISOString(),
                 duration: duration,
-                notes: error.message
+                notes: error.message,
+                recordingSid: null
             });
             currentCall = null;
             callStartTime = null;
@@ -1490,7 +1494,8 @@ async function makeCall() {
             startTime: new Date().toISOString(),
             endTime: new Date().toISOString(),
             duration: 0,
-            notes: e.message
+            notes: e.message,
+            recordingSid: null
         });
         callStartTime = null;
     }
@@ -1510,7 +1515,8 @@ function hangup() {
             status: 'answered',
             startTime: new Date(callStartTime || Date.now()).toISOString(),
             endTime: new Date().toISOString(),
-            duration: duration
+            duration: duration,
+            recordingSid: null
         });
         currentCall = null;
         callStartTime = null;
