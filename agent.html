@@ -1,129 +1,655 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Agent - Working Version</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: #f5f7fa; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; }
-        .header { background: #1a1a2e; color: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; }
-        .header h1 { font-size: 20px; }
-        .header .status { font-size: 12px; opacity: 0.7; margin-top: 4px; }
-        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .card h3 { margin-bottom: 12px; color: #1a1a2e; }
-        .input-group { display: flex; gap: 10px; margin-bottom: 12px; }
-        .input-group input { flex: 1; padding: 12px 16px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; }
-        .input-group input:focus { border-color: #1a73e8; outline: none; }
-        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%; }
-        .btn-primary { background: #1a73e8; color: white; }
-        .btn-primary:hover { background: #1557b0; }
-        .btn-primary:disabled { background: #999; cursor: not-allowed; }
-        .btn-danger { background: #dc3545; color: white; }
-        .btn-danger:hover { background: #c62828; }
-        .call-status { padding: 12px; border-radius: 8px; margin-top: 12px; text-align: center; font-weight: 600; }
-        .call-status.idle { background: #e9ecef; color: #6c757d; }
-        .call-status.ringing { background: #fff3e0; color: #e65100; }
-        .call-status.connected { background: #e8f5e9; color: #2e7d32; }
-        .call-status.error { background: #ffebee; color: #c62828; }
-        .call-status.ready { background: #e3f2fd; color: #0d47a1; }
-        .log-box { background: #1a1a2e; color: #aed581; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
-        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; margin: 3px; }
-        .badge-success { background: #e8f5e9; color: #2e7d32; }
-        .badge-error { background: #ffebee; color: #c62828; }
-        .badge-warning { background: #fff3e0; color: #e65100; }
-        .badge-info { background: #e3f2fd; color: #0d47a1; }
-        .badge-ready { background: #81c784; color: #1b5e20; }
-        .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-        .actions button { flex: 1; min-width: 80px; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
-        .btn-warning { background: #ff9800; color: white; }
-        .btn-success { background: #34a853; color: white; }
-        .click-prompt { 
-            background: #e3f2fd; 
-            padding: 12px; 
-            border-radius: 8px; 
-            margin-bottom: 12px; 
-            text-align: center;
-            font-weight: 600;
-            color: #0d47a1;
-            border: 2px dashed #0d47a1;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .click-prompt:hover {
-            background: #bbdefb;
-        }
-        .click-prompt.success {
-            background: #e8f5e9;
-            border-color: #2e7d32;
-            color: #2e7d32;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>Agent – Complete CRM</title>
+  <!-- Firebase & Twilio SDKs (functionality untouched) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="/twilio.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #eef4fc;
+      padding: 16px 12px 80px 12px;
+      min-height: 100vh;
+      color: #1e293b;
+    }
+    .container { max-width: 480px; margin:0 auto; }
+
+    .login-container {
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: #eef4fc;
+      padding:20px;
+      position:fixed;
+      top:0;left:0;right:0;bottom:0;
+      z-index:9999;
+    }
+    .login-card {
+      background:#ffffff;
+      border-radius:28px;
+      padding:40px 28px;
+      max-width:400px;
+      width:100%;
+      box-shadow:0 12px 40px rgba(0,20,50,0.08);
+      border:1px solid rgba(255,255,255,0.3);
+    }
+    .login-card h1 {
+      font-size:26px; font-weight:600; color:#0b2b4a; margin-bottom:6px; text-align:center;
+      letter-spacing:-0.3px;
+    }
+    .login-card .subtitle {
+      text-align:center; color:#5e6f8d; font-size:14px; margin-bottom:28px;
+    }
+    .login-card .form-group { margin-bottom:18px; }
+    .login-card label {
+      display:block; font-size:13px; font-weight:600; color:#1e293b; margin-bottom:4px;
+    }
+    .login-card input {
+      width:100%; padding:14px 16px; border:1.5px solid #dce3ef; border-radius:14px;
+      font-size:16px; background:#f8faff; transition:0.2s;
+    }
+    .login-card input:focus { border-color:#5b8def; outline:none; background:#ffffff; box-shadow:0 0 0 4px rgba(91,141,239,0.12); }
+    .login-card .btn-login {
+      width:100%; padding:16px; background:#2a6df4; color:white; border:none;
+      border-radius:40px; font-size:16px; font-weight:600; cursor:pointer;
+      transition:0.2s; margin-top:4px; box-shadow:0 8px 18px rgba(42,109,244,0.2);
+    }
+    .login-card .btn-login:hover { background:#1a56d4; transform:scale(0.98); }
+    .login-card .btn-login:disabled { background:#9bb1d4; cursor:not-allowed; }
+    .login-card .error-msg {
+      background:#fee9e7; color:#b3362a; padding:12px; border-radius:12px;
+      font-size:13px; margin-bottom:16px; display:none;
+    }
+    .login-card .demo-cred {
+      margin-top:24px; padding-top:20px; border-top:1px solid #e6edf8;
+      text-align:center; font-size:12px; color:#6f7e9b;
+    }
+    .login-card .demo-cred code {
+      display:block; background:#f2f7fe; padding:8px; border-radius:10px;
+      font-size:12px; color:#1a3552; margin-top:6px;
+    }
+    .login-card .status-text {
+      text-align:center; font-size:12px; color:#5e7a9e; margin-top:10px;
+    }
+
+    .header {
+      background: #ffffff;
+      padding: 20px 18px;
+      border-radius: 24px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 14px rgba(0,20,40,0.04);
+      border:1px solid rgba(255,255,255,0.6);
+    }
+    .header h1 {
+      font-size:20px; font-weight:600; color:#0b2b4a; letter-spacing:-0.2px;
+    }
+    .header .status {
+      font-size:12px; opacity:0.7; margin-top:4px; color:#3b5a7a;
+    }
+    .header .user-info {
+      margin-top:10px; display:flex; justify-content:space-between; align-items:center;
+      font-size:13px; color:#1e3a5a;
+    }
+    .header .user-info .logout-btn {
+      background:#f0f5fe; color:#1a4a7a; border:1px solid #d4e0f0;
+      padding:6px 16px; border-radius:40px; cursor:pointer; font-size:12px; font-weight:500;
+      transition:0.2s;
+    }
+    .header .user-info .logout-btn:hover { background:#e1eaf9; }
+
+    .card {
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 20px 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 14px rgba(0,20,40,0.04);
+      border:1px solid rgba(255,255,255,0.5);
+    }
+    .card h3 {
+      font-size:16px; font-weight:600; color:#0f2b44; margin-bottom:14px;
+      letter-spacing:-0.2px;
+    }
+
+    .badge {
+      display:inline-block; padding:4px 12px; border-radius:40px; font-size:11px;
+      font-weight:600; margin:2px 2px 2px 0;
+    }
+    .badge-success { background:#e2f0e6; color:#1d6b3c; }
+    .badge-error { background:#fce8e6; color:#b3362a; }
+    .badge-warning { background:#fff0db; color:#a8671a; }
+    .badge-info { background:#e3edfc; color:#1a5b9e; }
+    .badge-blue { background:#dde9fc; color:#18529b; }
+    .badge-red { background:#fcd9d6; color:#b52a1e; }
+    .badge-yellow { background:#fcefcb; color:#9e711a; }
+    .badge-ready { background:#c8e6d9; color:#1b6b3f; }
+
+    .input-group {
+      display:flex; gap:10px; margin-bottom:14px;
+      flex-wrap:wrap;
+    }
+    .input-group input {
+      flex:1; padding:14px 16px; border:1.5px solid #dce3ef; border-radius:40px;
+      font-size:16px; background:#f8faff; transition:0.2s; min-width:160px;
+    }
+    .input-group input:focus { border-color:#5b8def; outline:none; background:#fff; box-shadow:0 0 0 4px rgba(91,141,239,0.08); }
+
+    .btn {
+      padding:14px 22px; border:none; border-radius:40px; font-size:15px;
+      font-weight:600; cursor:pointer; transition:0.2s; display:inline-flex;
+      align-items:center; justify-content:center; gap:6px;
+    }
+    .btn-primary { background:#2a6df4; color:white; box-shadow:0 6px 14px rgba(42,109,244,0.18); }
+    .btn-primary:hover { background:#1a56d4; transform:scale(0.97); }
+    .btn-primary:disabled { background:#aec4e8; cursor:not-allowed; box-shadow:none; }
+    .btn-danger { background:#e5534b; color:white; }
+    .btn-danger:hover { background:#cf3e36; }
+    .btn-warning { background:#f5b342; color:white; }
+    .btn-warning:hover { background:#df9f2e; }
+    .btn-success { background:#3a9b5e; color:white; }
+    .btn-success:hover { background:#2d824b; }
+    .btn-sm { padding:8px 16px; font-size:12px; }
+
+    .call-status {
+      padding:14px; border-radius:40px; margin-top:14px; text-align:center;
+      font-weight:600; font-size:14px;
+    }
+    .call-status.idle { background:#f0f5fe; color:#1f4a7a; }
+    .call-status.ringing { background:#fef0db; color:#a8671a; }
+    .call-status.connected { background:#ddf0e6; color:#1d6b3c; }
+    .call-status.error { background:#fce8e6; color:#b3362a; }
+    .call-status.ready { background:#e0edfc; color:#124a8a; }
+
+    .log-box {
+      background:#152238; color:#b6d7a8; padding:14px; border-radius:18px;
+      font-family:'SF Mono','Menlo',monospace; font-size:11px; max-height:260px;
+      overflow-y:auto; white-space:pre-wrap; line-height:1.5;
+    }
+
+    .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+    .actions button {
+      flex:1; min-width:80px; padding:10px 6px; border:none; border-radius:40px;
+      cursor:pointer; font-weight:600; font-size:12px; transition:0.2s;
+      background:#eef4fc; color:#1a4a7a;
+    }
+    .actions button:hover { background:#dce6f5; }
+
+    .lead-item {
+      padding:14px 4px; border-bottom:1px solid #e6edf8; display:flex;
+      justify-content:space-between; align-items:center; flex-wrap:wrap;
+    }
+    .lead-item:last-child { border-bottom:none; }
+    .lead-name { font-weight:600; color:#0b2b4a; }
+    .lead-phone { color:#3d5f7f; font-size:14px; margin-top:2px; }
+    .lead-actions { display:flex; gap:6px; flex-wrap:wrap; }
+    .lead-actions button {
+      padding:6px 14px; border:none; border-radius:40px; cursor:pointer;
+      font-size:11px; font-weight:600;
+    }
+    .lead-call { background:#2a6df4; color:white; }
+    .lead-call:hover { background:#1a56d4; }
+    .lead-status-select {
+      padding:6px 10px; border:1.5px solid #dce3ef; border-radius:40px;
+      font-size:11px; background:#f8faff;
+    }
+    .lead-search {
+      width:100%; padding:14px 16px; border:1.5px solid #dce3ef; border-radius:40px;
+      font-size:14px; background:#f8faff; margin-bottom:14px;
+    }
+    .lead-search:focus { border-color:#5b8def; outline:none; background:#fff; }
+    .lead-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .lead-filters select {
+      padding:10px 14px; border:1.5px solid #dce3ef; border-radius:40px;
+      font-size:12px; background:#f8faff; flex:1; min-width:80px;
+    }
+    .leads-count {
+      font-size:13px; color:#3d5f7f; margin-bottom:14px; text-align:center;
+      padding:8px; background:#f2f7fe; border-radius:40px;
+    }
+    .lead-empty {
+      text-align:center; padding:40px 10px; color:#6f7e9b; font-size:14px;
+    }
+
+    .msg-item {
+      padding:16px 4px; border-bottom:1px solid #e6edf8;
+    }
+    .msg-item:last-child { border-bottom:none; }
+    .msg-title { font-weight:600; color:#0b2b4a; }
+    .msg-content { font-size:14px; color:#2b4a6a; margin-top:4px; }
+    .msg-meta { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+    .msg-actions { display:flex; gap:4px; margin-top:10px; }
+    .msg-actions button {
+      padding:6px 14px; border:none; border-radius:40px; cursor:pointer;
+      font-size:11px; font-weight:500;
+    }
+
+    .survey-item {
+      padding:16px 4px; border-bottom:1px solid #e6edf8;
+    }
+    .survey-item:last-child { border-bottom:none; }
+    .survey-title { font-weight:600; color:#0b2b4a; }
+    .survey-desc { font-size:13px; color:#3d5f7f; margin-top:4px; }
+    .survey-stats { display:flex; gap:10px; margin-top:8px; font-size:12px; color:#4b6a8a; flex-wrap:wrap; }
+
+    .bottom-nav {
+      position:fixed; bottom:0; left:0; right:0;
+      background:rgba(255,255,255,0.92);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+      border-top:1px solid rgba(200,215,235,0.4);
+      display:flex; box-shadow:0 -4px 20px rgba(0,20,40,0.04);
+      max-width:480px; margin:0 auto; z-index:1000;
+      border-radius:32px 32px 0 0;
+      padding:4px 0 env(safe-area-inset-bottom, 8px) 0;
+    }
+    .bottom-nav button {
+      flex:1; padding:10px 0 6px 0; border:none; background:transparent;
+      cursor:pointer; font-size:10px; font-weight:600; color:#6f7e9b;
+      transition:0.2s; position:relative; display:flex; flex-direction:column;
+      align-items:center; gap:2px;
+    }
+    .bottom-nav button .nav-icon {
+      width:22px; height:22px; opacity:0.55; transition:0.2s;
+    }
+    .bottom-nav button.active { color:#1a5b9e; }
+    .bottom-nav button.active .nav-icon { opacity:1; color:#1a5b9e; }
+    .bottom-nav button.active::after {
+      content:''; position:absolute; top:0; left:25%; right:25%; height:3px;
+      background:#2a6df4; border-radius:0 0 6px 6px;
+    }
+    .bottom-nav button .badge-count {
+      background:#e5534b; color:white; border-radius:40px; padding:1px 8px;
+      font-size:9px; position:absolute; top:2px; right:12%;
+    }
+
+    .page { display:none; }
+    .page.active { display:block; }
+    .app-content { display:none; }
+    .app-content.visible { display:block; }
+
+    .modal-overlay {
+      display:none; position:fixed; top:0;left:0;right:0;bottom:0;
+      background:rgba(10,25,50,0.5); backdrop-filter:blur(2px);
+      z-index:2000; align-items:center; justify-content:center; padding:20px;
+    }
+    .modal-overlay.show { display:flex; }
+    .modal-box {
+      background:#ffffff; border-radius:32px; max-width:480px; width:100%;
+      max-height:90vh; overflow-y:auto; padding:28px 24px;
+      box-shadow:0 20px 60px rgba(0,20,40,0.12);
+    }
+    .modal-box h2 { font-size:20px; font-weight:600; color:#0b2b4a; margin-bottom:18px; }
+    .modal-box .form-group { margin-bottom:16px; }
+    .modal-box label { display:block; font-weight:600; font-size:13px; margin-bottom:4px; color:#1e3a5a; }
+    .modal-box input, .modal-box textarea, .modal-box select {
+      width:100%; padding:12px 16px; border:1.5px solid #dce3ef; border-radius:40px;
+      font-size:14px; background:#f8faff; transition:0.2s;
+    }
+    .modal-box input:focus, .modal-box textarea:focus, .modal-box select:focus {
+      border-color:#5b8def; outline:none; background:#fff;
+    }
+    .modal-box textarea { border-radius:20px; min-height:80px; }
+    .modal-box .modal-actions {
+      display:flex; gap:10px; margin-top:20px; justify-content:flex-end; flex-wrap:wrap;
+    }
+    .modal-box .modal-actions button {
+      padding:12px 24px; border:none; border-radius:40px; font-weight:600;
+      cursor:pointer; transition:0.2s;
+    }
+    .modal-box .modal-actions .btn-cancel { background:#eef4fc; color:#1a4a7a; }
+    .modal-box .modal-actions .btn-confirm { background:#2a6df4; color:white; }
+    .modal-box .modal-actions .btn-confirm:hover { background:#1a56d4; }
+
+    .question-card {
+      background:#f5f9ff; padding:14px; border-radius:20px; margin-bottom:12px;
+      border:1px solid #e6edf8;
+    }
+    .question-card .q-header {
+      display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;
+    }
+    .question-card .q-header button {
+      background:none; border:none; color:#b3362a; cursor:pointer; font-size:16px;
+    }
+    .click-prompt {
+      background:#e6effc; padding:12px; border-radius:40px; margin-bottom:16px;
+      text-align:center; font-weight:500; color:#1a4a7a;
+      border:1.5px dashed #5b8def; cursor:pointer; transition:0.2s;
+      font-size:14px;
+    }
+    .click-prompt:hover { background:#d6e5fa; }
+    .click-prompt.success { background:#ddf0e6; border-color:#3a9b5e; color:#1d6b3c; }
+
+    .flex { display:flex; gap:8px; flex-wrap:wrap; }
+    .mt-2 { margin-top:12px; }
+    .w-full { width:100%; }
+    .gap-2 { gap:8px; }
+  </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <h1>📞 Agent - Working</h1>
-        <div class="status" id="deviceStatus">🔴 Device: Not Ready</div>
-        <div style="margin-top:10px;">
-            <span class="badge badge-info" id="sdkBadge">📦 SDK: Checking...</span>
-            <span class="badge badge-info" id="tokenBadge">🔑 Token: Unknown</span>
-            <span class="badge badge-info" id="audioBadge">🎵 Audio: Suspended</span>
-            <span class="badge badge-info" id="stateBadge">📊 State: Idle</span>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="click-prompt" id="clickPrompt" onclick="resumeAudio()">
-            👆 <strong>Click here</strong> or anywhere on the page to enable audio
-        </div>
-        <h3>📤 Make a Call</h3>
-        <div class="input-group">
-            <input type="text" id="phoneInput" placeholder="+1234567890" />
-            <button class="btn btn-primary" id="callBtn" onclick="makeCall()" disabled>📞 Call</button>
-        </div>
-        <button class="btn btn-danger" id="hangupBtn" onclick="hangup()" style="display:none;">🔴 Hang Up</button>
-        <div id="callStatus" class="call-status idle">Ready to call</div>
-        
-        <div class="actions">
-            <button class="btn-warning" onclick="initDevice()">🔄 Reconnect</button>
-            <button class="btn-success" onclick="resumeAudio()">🎵 Resume Audio</button>
-            <button class="btn-warning" onclick="forceDeviceReady()">⚡ Force Ready</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>📋 Logs</h3>
-        <div id="logBox" class="log-box">⏳ Initializing...</div>
-        <button onclick="clearLogs()" style="margin-top:8px;padding:4px 12px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">🗑️ Clear</button>
-    </div>
+<!-- ===== LOGIN ===== -->
+<div id="loginContainer" class="login-container">
+  <div class="login-card">
+    <h1>Agent App</h1>
+    <p class="subtitle">Sign in to manage calls, leads &amp; surveys</p>
+    <div id="loginError" class="error-msg"></div>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="you@company.com" required />
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+    </form>
+    <div class="status-text" id="firebaseStatus" style="display: none">Connecting to Firebase...</div>
+  </div>
 </div>
 
-<!-- ============================================ -->
-<!-- LOAD SDK FROM LOCAL FILE -->
-<!-- ============================================ -->
-<script src="/twilio.min.js"></script>
+<!-- ===== MAIN APP ===== -->
+<div id="appContent" class="app-content">
+  <div class="container">
+
+    <!-- CALLS PAGE -->
+    <div id="callsPage" class="page active">
+      <div class="header">
+        <h1>Call</h1>
+        <div class="user-info">
+          <span id="userDisplay">Loading...</span>
+          <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        </div>
+        <div class="status" id="deviceStatus">Device: Not Ready</div>
+        <div class="flex" style="margin-top:10px;">
+          <span class="badge badge-info" id="sdkBadge">SDK: Checking...</span>
+          <span class="badge badge-info" id="tokenBadge">Token: Unknown</span>
+          <span class="badge badge-info" id="audioBadge">Audio: Suspended</span>
+          <span class="badge badge-info" id="stateBadge">State: Idle</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="click-prompt" id="clickPrompt" onclick="resumeAudio()">
+          <strong>Tap here</strong> or anywhere to enable audio
+        </div>
+        <h3>Make a Call</h3>
+        <div class="input-group">
+          <input type="text" id="phoneInput" placeholder="+1234567890" />
+          <button class="btn btn-primary" id="callBtn" onclick="makeCall()" disabled>Call</button>
+        </div>
+        <button class="btn btn-danger" id="hangupBtn" onclick="hangup()" style="display:none;">Hang Up</button>
+        <div id="callStatus" class="call-status idle">Ready to call</div>
+        <div class="actions">
+          <button onclick="initDevice()">Reconnect</button>
+          <button onclick="resumeAudio()">Resume Audio</button>
+          <button onclick="forceDeviceReady()">Force Ready</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Logs</h3>
+        <div id="logBox" class="log-box">Initializing...</div>
+        <button onclick="clearLogs()" style="margin-top:12px;padding:8px 20px;background:#eef4fc;border:none;border-radius:40px;cursor:pointer;font-size:12px;font-weight:500;color:#1a4a7a;">Clear</button>
+      </div>
+    </div>
+
+    <!-- LEADS PAGE -->
+    <div id="leadsPage" class="page">
+      <div class="header">
+        <h1>Leads</h1>
+        <div class="user-info">
+          <span id="leadsUserDisplay">Loading...</span>
+          <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        </div>
+        <div class="status" id="leadsStatus">Loading leads...</div>
+      </div>
+      <div class="card">
+        <h3>Search &amp; Filter</h3>
+        <input type="text" id="leadSearch" class="lead-search" placeholder="Search leads..." />
+        <div class="lead-filters">
+          <select id="leadStatusFilter">
+            <option value="all">All Status</option>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="proposal">Proposal</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+          </select>
+          <select id="leadAgentFilter">
+            <option value="all">All Agents</option>
+          </select>
+        </div>
+        <div id="leadsCount" class="leads-count">Loading leads...</div>
+        <div id="leadsList">
+          <div class="lead-empty">No leads found</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MESSAGES PAGE -->
+    <div id="messagesPage" class="page">
+      <div class="header">
+        <h1>Messages</h1>
+        <div class="user-info">
+          <span id="msgUserDisplay">Loading...</span>
+          <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        </div>
+        <div class="status" id="msgStatus">Loading messages...</div>
+      </div>
+      <div class="card">
+        <div class="flex" style="margin-bottom:14px;"></div>
+        <div class="flex" style="margin-bottom:14px;">
+          <button class="btn btn-sm" style="background:#eef4fc;color:#1a4a7a;" onclick="filterMessages('all')">All</button>
+          <button class="btn btn-sm" style="background:#ddf0e6;color:#1d6b3c;" onclick="filterMessages('sent')">Sent</button>
+          <button class="btn btn-sm" style="background:#fef0db;color:#a8671a;" onclick="filterMessages('draft')">Drafts</button>
+        </div>
+        <div id="messagesList">
+          <div class="lead-empty">No messages</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SURVEYS PAGE -->
+    <div id="surveysPage" class="page">
+      <div class="header">
+        <h1>Surveys</h1>
+        <div class="user-info">
+          <span id="surveyUserDisplay">Loading...</span>
+          <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        </div>
+        <div class="status" id="surveyStatus">Loading surveys...</div>
+      </div>
+      <div class="card">
+        <div class="flex" style="margin-bottom:14px;"></div>
+        <div class="flex" style="margin-bottom:14px;">
+          <button class="btn btn-sm" style="background:#eef4fc;color:#1a4a7a;" onclick="filterSurveys('all')">All</button>
+          <button class="btn btn-sm" style="background:#ddf0e6;color:#1d6b3c;" onclick="filterSurveys('active')">Active</button>
+          <button class="btn btn-sm" style="background:#fef0db;color:#a8671a;" onclick="filterSurveys('draft')">Drafts</button>
+          <button class="btn btn-sm" style="background:#fce8e6;color:#b3362a;" onclick="filterSurveys('closed')">Closed</button>
+        </div>
+        <div id="surveysList">
+          <div class="lead-empty">No surveys</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button id="callsTab" class="active" onclick="switchTab('calls')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+      </svg>
+      <span>Calls</span>
+    </button>
+    <button id="leadsTab" onclick="switchTab('leads')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <span>Leads</span>
+      <span class="badge-count" id="leadBadge" style="display:none;">0</span>
+    </button>
+    <button id="messagesTab" onclick="switchTab('messages')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span>Messages</span>
+    </button>
+    <button id="surveysTab" onclick="switchTab('surveys')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3"/>
+        <circle cx="9" cy="15" r="1"/>
+        <polyline points="16 3 21 8 16 13"/>
+        <line x1="9" y1="9" x2="21" y2="9"/>
+      </svg>
+      <span>Surveys</span>
+    </button>
+  </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+<!-- Message Modal -->
+<div id="messageModal" class="modal-overlay">
+  <div class="modal-box">
+    <h2 id="msgModalTitle">New Message</h2>
+    <form id="messageForm" onsubmit="sendMessage(event)">
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="msgTitle" placeholder="Message title" required />
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="msgType">
+          <option value="notification">Notification</option>
+          <option value="alert">Alert</option>
+          <option value="reminder">Reminder</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Target Audience</label>
+        <select id="msgTarget">
+          <option value="all">All Users</option>
+          <option value="agents">Agents Only</option>
+          <option value="managers">Managers Only</option>
+          <option value="specific">Specific Users</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Content</label>
+        <textarea id="msgContent" rows="4" placeholder="Message content..." required></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" onclick="closeModal('messageModal')">Cancel</button>
+        <button type="button" class="btn-cancel" onclick="saveDraft()">Save Draft</button>
+        <button type="submit" class="btn-confirm">Send Now</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Survey Modal -->
+<div id="surveyModal" class="modal-overlay">
+  <div class="modal-box">
+    <h2 id="surveyModalTitle">Create Survey</h2>
+    <form id="surveyForm" onsubmit="saveSurvey(event)">
+      <div class="form-group">
+        <label>Survey Title</label>
+        <input type="text" id="surveyTitle" placeholder="Survey title" required />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="surveyDesc" rows="2" placeholder="Survey description"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Target Audience</label>
+        <select id="surveyTarget">
+          <option value="all">All Users</option>
+          <option value="agents">Agents Only</option>
+          <option value="managers">Managers Only</option>
+          <option value="customers">Customers Only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Questions</label>
+        <div id="questionsContainer"></div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="addQuestion()" style="margin-top:8px;">Add Question</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" onclick="closeModal('surveyModal')">Cancel</button>
+        <button type="submit" class="btn-confirm">Save Survey</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Responses Modal -->
+<div id="responsesModal" class="modal-overlay">
+  <div class="modal-box">
+    <h2 id="responsesTitle">Survey Responses</h2>
+    <div id="responsesContent"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" onclick="closeModal('responsesModal')">Close</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ============================================
-// CONFIGURATION
+// FIREBASE CONFIG (unchanged)
 // ============================================
-const CONFIG = {
-    BASE_URL: window.location.origin,
+const firebaseConfig = {
+    apiKey: "AIzaSyDqDnTWFf0xluB_U41GXxCYfKsGK5QX9Ag",
+    authDomain: "luxe-b95d0.firebaseapp.com",
+    projectId: "luxe-b95d0",
+    storageBucket: "luxe-b95d0.firebasestorage.app",
+    messagingSenderId: "217781331790",
+    appId: "1:217781331790:web:881aee2b3ace08f297201f",
+    measurementId: "G-BJGZTH01TH",
 };
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
 // ============================================
-// STATE
+// STATE (unchanged)
 // ============================================
+let currentUser = null;
+let authInitialized = false;
+let allLeads = [];
+let allMessages = [];
+let allSurveys = [];
+let currentMessageFilter = 'all';
+let currentSurveyFilter = 'all';
+let editingSurveyId = null;
+let editingMessageId = null;
+
+// Twilio state
 let device = null;
 let currentCall = null;
 let deviceReady = false;
 let deviceRegistered = false;
+let callStartTime = null; // Track call start time for duration
 
-// ============================================
-// DOM REFS
-// ============================================
+// DOM refs
+const loginContainer = document.getElementById('loginContainer');
+const appContent = document.getElementById('appContent');
+const loginError = document.getElementById('loginError');
+const loginBtn = document.getElementById('loginBtn');
+const firebaseStatus = document.getElementById('firebaseStatus');
+const userDisplay = document.getElementById('userDisplay');
+const leadsUserDisplay = document.getElementById('leadsUserDisplay');
+const msgUserDisplay = document.getElementById('msgUserDisplay');
+const surveyUserDisplay = document.getElementById('surveyUserDisplay');
 const deviceStatus = document.getElementById('deviceStatus');
 const callBtn = document.getElementById('callBtn');
 const hangupBtn = document.getElementById('hangupBtn');
@@ -135,422 +661,717 @@ const audioBadge = document.getElementById('audioBadge');
 const stateBadge = document.getElementById('stateBadge');
 const callStatus = document.getElementById('callStatus');
 const clickPrompt = document.getElementById('clickPrompt');
+const leadsList = document.getElementById('leadsList');
+const leadsCount = document.getElementById('leadsCount');
+const leadSearch = document.getElementById('leadSearch');
+const leadStatusFilter = document.getElementById('leadStatusFilter');
+const leadAgentFilter = document.getElementById('leadAgentFilter');
+const leadBadge = document.getElementById('leadBadge');
+const leadsStatus = document.getElementById('leadsStatus');
+const messagesList = document.getElementById('messagesList');
+const msgStatus = document.getElementById('msgStatus');
+const surveysList = document.getElementById('surveysList');
+const surveyStatus = document.getElementById('surveyStatus');
 
 // ============================================
-// LOGGING
+// AUTH (unchanged)
 // ============================================
-function addLog(msg, type = 'info') {
+auth.onAuthStateChanged((user) => {
+    authInitialized = true;
+    firebaseStatus.textContent = 'Firebase connected';
+    if (user) {
+        currentUser = user;
+        loginContainer.style.display = 'none';
+        appContent.classList.add('visible');
+        const name = user.displayName || user.email || 'User';
+        userDisplay.textContent = name;
+        leadsUserDisplay.textContent = name;
+        msgUserDisplay.textContent = name;
+        surveyUserDisplay.textContent = name;
+        addLog('Logged in: ' + user.email, 'success');
+        setTimeout(loadLeads, 500);
+        setTimeout(loadMessages, 600);
+        setTimeout(loadSurveys, 700);
+        setTimeout(initDevice, 1000);
+    } else {
+        currentUser = null;
+        loginContainer.style.display = 'flex';
+        appContent.classList.remove('visible');
+        if (authInitialized) firebaseStatus.textContent = 'Not signed in';
+    }
+});
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) { showLoginError('Enter email and password'); return; }
+    loginError.style.display = 'none';
+    loginBtn.disabled = true; loginBtn.textContent = 'Signing in...';
+    try {
+        await auth.signInWithEmailAndPassword(email, password);
+    } catch (err) {
+        let msg = 'Login failed. Check credentials.';
+        if (err.code === 'auth/user-not-found') msg = 'No account found.';
+        else if (err.code === 'auth/wrong-password') msg = 'Incorrect password.';
+        else if (err.code === 'auth/invalid-email') msg = 'Invalid email.';
+        else if (err.code === 'auth/too-many-requests') msg = 'Too many attempts. Try later.';
+        showLoginError(msg);
+    } finally {
+        loginBtn.disabled = false; loginBtn.textContent = 'Sign In';
+    }
+}
+function showLoginError(msg) { loginError.textContent = msg; loginError.style.display = 'block'; }
+async function handleLogout() {
+    try { await auth.signOut(); addLog('Logged out', 'info'); if (device) { device.destroy(); device = null; deviceReady = false; } deviceStatus.textContent = 'Device: Not Ready'; deviceStatus.className = 'call-status idle'; callBtn.disabled = true; } catch(e) {}
+}
+
+// ============================================
+// UTILITIES (unchanged)
+// ============================================
+function addLog(msg, type='info') {
     const time = new Date().toLocaleTimeString();
-    const colors = {
-        info: '#aed581',
-        error: '#ef9a9a',
-        warning: '#ffcc80',
-        success: '#81c784',
-        debug: '#90caf9'
-    };
-    const color = colors[type] || '#aed581';
-    logBox.innerHTML = `<span style="color:${color}">[${time}] ${msg}</span>\n${logBox.innerHTML}`;
-    console.log(`[${time}] ${msg}`);
+    const colors = { info:'#b6d7a8', error:'#ef9a9a', warning:'#ffcc80', success:'#81c784', debug:'#90caf9' };
+    logBox.innerHTML = `<span style="color:${colors[type]||'#b6d7a8'}">[${time}] ${msg}</span>\n${logBox.innerHTML}`;
 }
-
-function clearLogs() {
-    logBox.innerHTML = '📋 Logs cleared';
+function clearLogs() { logBox.innerHTML = 'Logs cleared'; }
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function switchTab(tab) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+    const pages = { calls:'callsPage', leads:'leadsPage', messages:'messagesPage', surveys:'surveysPage' };
+    const tabs = { calls:'callsTab', leads:'leadsTab', messages:'messagesTab', surveys:'surveysTab' };
+    document.getElementById(pages[tab]).classList.add('active');
+    document.getElementById(tabs[tab]).classList.add('active');
+    if (tab === 'leads' && currentUser) loadLeads();
+    if (tab === 'messages' && currentUser) loadMessages();
+    if (tab === 'surveys' && currentUser) loadSurveys();
 }
 
 // ============================================
-// FORCE DEVICE READY (Emergency fix)
+// CALL LOGGING TO FIREBASE (NEW)
 // ============================================
+async function logCallToFirebase(callData) {
+    if (!currentUser) {
+        addLog('Cannot log call: No user logged in', 'error');
+        return;
+    }
+
+    try {
+        // Get lead info from phone number if available
+        let leadInfo = null;
+        if (callData.leadPhone) {
+            const leadQuery = await db.collection('leads')
+                .where('phone', '==', callData.leadPhone)
+                .limit(1)
+                .get();
+            if (!leadQuery.empty) {
+                const doc = leadQuery.docs[0];
+                const data = doc.data();
+                leadInfo = {
+                    id: doc.id,
+                    firstName: data.firstName || '',
+                    lastName: data.lastName || '',
+                    email: data.email || ''
+                };
+            }
+        }
+
+        const callRecord = {
+            callSid: callData.callSid || null,
+            agentId: currentUser.uid,
+            agentName: currentUser.displayName || currentUser.email || 'Unknown Agent',
+            leadId: leadInfo?.id || null,
+            leadName: leadInfo ? `${leadInfo.firstName} ${leadInfo.lastName}`.trim() : callData.leadName || null,
+            leadPhone: callData.leadPhone || phoneInput.value.trim() || 'unknown',
+            direction: 'outbound',
+            status: callData.status || 'unknown',
+            startTime: callData.startTime || new Date().toISOString(),
+            endTime: callData.endTime || new Date().toISOString(),
+            duration: callData.duration || 0,
+            recordingSid: callData.recordingSid || null,
+            recordingUrl: callData.recordingUrl || null,
+            transcript: callData.transcript || null,
+            notes: callData.notes || '',
+            callType: 'standard',
+            outcome: callData.outcome || null,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Add to 'calls' collection
+        await db.collection('calls').add(callRecord);
+        addLog(`Call logged to Firebase: ${callData.leadPhone} (${callData.status})`, 'success');
+        
+        // If lead exists, update their status to 'contacted'
+        if (leadInfo?.id) {
+            await db.collection('leads').doc(leadInfo.id).update({
+                status: 'contacted',
+                lastContacted: new Date().toISOString(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            addLog(`Lead ${leadInfo.firstName} ${leadInfo.lastName} updated to contacted`, 'success');
+        }
+    } catch (error) {
+        console.error('Error logging call:', error);
+        addLog('Error logging call to Firebase: ' + error.message, 'error');
+    }
+}
+
+// ============================================
+// LEADS (unchanged)
+// ============================================
+async function loadLeads() {
+    if (!currentUser) return;
+    try {
+        leadsStatus.textContent = 'Loading leads...';
+        const snapshot = await db.collection('leads').where('assignedTo', 'in', [null, currentUser.uid]).get();
+        const leads = [];
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            leads.push({ id: doc.id, ...d, firstName: d.firstName || '', lastName: d.lastName || '', phone: d.phone || '', email: d.email || '', status: d.status || 'new', assignedTo: d.assignedTo || null, assignedToName: d.assignedToName || '', createdAt: d.createdAt || Date.now() });
+        });
+        allLeads = leads;
+        const unassigned = leads.filter(l => !l.assignedTo).length;
+        leadBadge.textContent = unassigned;
+        leadBadge.style.display = unassigned > 0 ? 'inline' : 'none';
+        leadsStatus.textContent = leads.length + ' leads loaded';
+        renderLeads();
+    } catch(e) { leadsStatus.textContent = 'Error loading leads'; }
+}
+function renderLeads() {
+    const search = leadSearch.value.toLowerCase();
+    const statusFilter = leadStatusFilter.value;
+    const agentFilter = leadAgentFilter.value;
+    let filtered = allLeads.filter(l => {
+        const name = (l.firstName+' '+l.lastName).toLowerCase();
+        const phone = (l.phone || '').toLowerCase();
+        const email = (l.email || '').toLowerCase();
+        return (!search || name.includes(search) || phone.includes(search) || email.includes(search)) &&
+               (statusFilter === 'all' || l.status === statusFilter) &&
+               (agentFilter === 'all' || l.assignedToName === agentFilter);
+    });
+    filtered.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    leadsCount.textContent = filtered.length + ' leads (' + allLeads.length + ' total)';
+    if (!filtered.length) { leadsList.innerHTML = '<div class="lead-empty">No leads found</div>'; return; }
+    let html = '';
+    filtered.forEach(l => {
+        const statusColors = { new:'badge-info', contacted:'badge-warning', proposal:'badge-warning', won:'badge-success', lost:'badge-error' };
+        const sc = statusColors[l.status] || 'badge-info';
+        html += `<div class="lead-item">
+            <div>
+                <div class="lead-name">${l.firstName} ${l.lastName}</div>
+                <div class="lead-phone">${l.phone} ${l.email ? '· ' + l.email : ''}</div>
+                <div class="flex" style="margin-top:4px;">
+                    <span class="badge ${sc}">${l.status}</span>
+                    ${l.assignedTo ? `<span class="badge badge-info">${l.assignedToName || 'Assigned'}</span>` : `<span class="badge badge-warning">Unassigned</span>`}
+                </div>
+            </div>
+            <div class="lead-actions">
+                <button class="lead-call" onclick="callLead('${l.phone}')">Call</button>
+                <select class="lead-status-select" onchange="updateLeadStatus('${l.id}', this.value)">
+                    <option value="new" ${l.status==='new'?'selected':''}>New</option>
+                    <option value="contacted" ${l.status==='contacted'?'selected':''}>Contacted</option>
+                    <option value="proposal" ${l.status==='proposal'?'selected':''}>Proposal</option>
+                    <option value="won" ${l.status==='won'?'selected':''}>Won</option>
+                    <option value="lost" ${l.status==='lost'?'selected':''}>Lost</option>
+                </select>
+            </div>
+        </div>`;
+    });
+    leadsList.innerHTML = html;
+}
+async function updateLeadStatus(leadId, newStatus) {
+    if (!currentUser) return;
+    try { await db.collection('leads').doc(leadId).update({ status: newStatus, updatedAt: Date.now() }); const l = allLeads.find(x=>x.id===leadId); if(l) l.status=newStatus; renderLeads(); } catch(e) {}
+}
+function callLead(phone) { switchTab('calls'); document.getElementById('phoneInput').value = phone; setTimeout(makeCall, 300); }
+
+// ============================================
+// MESSAGES (unchanged)
+// ============================================
+async function loadMessages() {
+    if (!currentUser) return;
+    try {
+        msgStatus.textContent = 'Loading messages...';
+        const snapshot = await db.collection('messages').orderBy('sentAt', 'desc').get();
+        allMessages = [];
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            allMessages.push({ id: doc.id, title: d.title || '', content: d.content || '', type: d.type || 'notification', targetAudience: d.targetAudience || 'all', status: d.status || 'draft', sentAt: d.sentAt?.toMillis?.() || d.sentAt || Date.now(), sentBy: d.sentBy || currentUser.uid, createdAt: d.createdAt?.toMillis?.() || d.createdAt || Date.now() });
+        });
+        msgStatus.textContent = allMessages.length + ' messages loaded';
+        renderMessages();
+    } catch(e) { msgStatus.textContent = 'Error loading messages'; }
+}
+function renderMessages() {
+    let filtered = allMessages;
+    if (currentMessageFilter === 'sent') filtered = allMessages.filter(m => m.status === 'sent');
+    else if (currentMessageFilter === 'draft') filtered = allMessages.filter(m => m.status === 'draft');
+    if (!filtered.length) { messagesList.innerHTML = '<div class="lead-empty">No messages</div>'; return; }
+    let html = '';
+    filtered.forEach(m => {
+        const typeColors = { notification:'badge-blue', alert:'badge-red', reminder:'badge-yellow' };
+        const tc = typeColors[m.type] || 'badge-info';
+        const icon = m.status === 'sent' ? '✓' : m.status === 'draft' ? '⏺' : '✕';
+        html += `<div class="msg-item">
+            <div class="msg-title">${icon} ${m.title}</div>
+            <div class="msg-content">${m.content}</div>
+            <div class="msg-meta">
+                <span class="badge ${tc}">${m.type}</span>
+                <span class="badge badge-info">${m.targetAudience}</span>
+                <span class="badge ${m.status === 'sent' ? 'badge-success' : 'badge-warning'}">${m.status}</span>
+                ${m.sentAt ? `<span style="font-size:11px;color:#4b6a8a;">${new Date(m.sentAt).toLocaleString()}</span>` : ''}
+            </div>
+            ${m.status === 'draft' ? `<div class="msg-actions"><button onclick="sendMessageNow('${m.id}')" style="background:#2a6df4;color:white;">Send Now</button></div>` : ''}
+        </div>`;
+    });
+    messagesList.innerHTML = html;
+}
+function filterMessages(filter) { currentMessageFilter = filter; renderMessages(); }
+function openMessageModal() { editingMessageId = null; document.getElementById('msgModalTitle').textContent = 'New Message'; document.getElementById('messageForm').reset(); openModal('messageModal'); }
+async function sendMessage(e) {
+    e.preventDefault();
+    if (!currentUser) return;
+    const title = document.getElementById('msgTitle').value.trim();
+    const content = document.getElementById('msgContent').value.trim();
+    const type = document.getElementById('msgType').value;
+    const target = document.getElementById('msgTarget').value;
+    if (!title || !content) { alert('Fill in title and content'); return; }
+    try {
+        const data = { title, content, type, targetAudience: target, status: 'sent', sentAt: Date.now(), sentBy: currentUser.uid, createdAt: Date.now() };
+        if (editingMessageId) await db.collection('messages').doc(editingMessageId).update(data);
+        else await db.collection('messages').add(data);
+        closeModal('messageModal'); loadMessages(); addLog('Message sent: ' + title, 'success');
+    } catch(e) { alert('Failed to send message'); }
+}
+async function saveDraft() {
+    if (!currentUser) return;
+    const title = document.getElementById('msgTitle').value.trim();
+    const content = document.getElementById('msgContent').value.trim();
+    const type = document.getElementById('msgType').value;
+    const target = document.getElementById('msgTarget').value;
+    if (!title || !content) { alert('Fill in title and content'); return; }
+    try {
+        const data = { title, content, type, targetAudience: target, status: 'draft', sentBy: currentUser.uid, createdAt: Date.now() };
+        if (editingMessageId) await db.collection('messages').doc(editingMessageId).update(data);
+        else await db.collection('messages').add(data);
+        closeModal('messageModal'); loadMessages(); addLog('Draft saved: ' + title, 'info');
+    } catch(e) { alert('Failed to save draft'); }
+}
+async function sendMessageNow(msgId) {
+    if (!currentUser || !msgId) return;
+    try { await db.collection('messages').doc(msgId).update({ status: 'sent', sentAt: Date.now() }); loadMessages(); addLog('Message sent!', 'success'); } catch(e) { alert('Failed'); }
+}
+
+// ============================================
+// SURVEYS (unchanged)
+// ============================================
+let surveyQuestions = [];
+async function loadSurveys() {
+    if (!currentUser) return;
+    try {
+        surveyStatus.textContent = 'Loading surveys...';
+        const snapshot = await db.collection('surveys').get();
+        allSurveys = [];
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            allSurveys.push({ id: doc.id, title: d.title || '', description: d.description || '', questions: d.questions || [], targetAudience: d.targetAudience || 'all', status: d.status || 'draft', sentAt: d.sentAt?.toMillis?.() || d.sentAt, createdAt: d.createdAt?.toMillis?.() || d.createdAt || Date.now(), responses: d.responses || [] });
+        });
+        surveyStatus.textContent = allSurveys.length + ' surveys loaded';
+        renderSurveys();
+    } catch(e) { surveyStatus.textContent = 'Error loading surveys'; }
+}
+function renderSurveys() {
+    let filtered = allSurveys;
+    if (currentSurveyFilter === 'active') filtered = allSurveys.filter(s => s.status === 'active');
+    else if (currentSurveyFilter === 'draft') filtered = allSurveys.filter(s => s.status === 'draft');
+    else if (currentSurveyFilter === 'closed') filtered = allSurveys.filter(s => s.status === 'closed');
+    if (!filtered.length) { surveysList.innerHTML = '<div class="lead-empty">No surveys</div>'; return; }
+    let html = '';
+    filtered.forEach(s => {
+        const sc = { active:'badge-success', draft:'badge-warning', closed:'badge-error' }[s.status] || 'badge-info';
+        const rc = (s.responses || []).length;
+        html += `<div class="survey-item">
+            <div class="survey-title">${s.title}</div>
+            <div class="survey-desc">${s.description || ''}</div>
+            <div class="survey-stats">
+                <span class="badge ${sc}">${s.status}</span>
+                <span>${s.targetAudience}</span>
+                <span>${s.questions?.length || 0} questions</span>
+                <span>${rc} responses</span>
+            </div>
+            <div class="flex" style="margin-top:8px;">
+                ${s.status === 'draft' ? `<button onclick="sendSurvey('${s.id}')" style="padding:6px 14px;background:#2a6df4;color:white;border:none;border-radius:40px;cursor:pointer;font-size:11px;">Send</button>` : ''}
+                ${s.status === 'active' ? `<button onclick="viewResponses('${s.id}')" style="padding:6px 14px;background:#3a9b5e;color:white;border:none;border-radius:40px;cursor:pointer;font-size:11px;">View</button>` : ''}
+                ${s.status === 'active' ? `<button onclick="closeSurvey('${s.id}')" style="padding:6px 14px;background:#f5b342;color:white;border:none;border-radius:40px;cursor:pointer;font-size:11px;">Close</button>` : ''}
+                ${s.status === 'closed' ? `<button onclick="viewResponses('${s.id}')" style="padding:6px 14px;background:#3a9b5e;color:white;border:none;border-radius:40px;cursor:pointer;font-size:11px;">View</button>` : ''}
+            </div>
+        </div>`;
+    });
+    surveysList.innerHTML = html;
+}
+function filterSurveys(filter) { currentSurveyFilter = filter; renderSurveys(); }
+function openSurveyModal() { editingSurveyId = null; surveyQuestions = []; document.getElementById('surveyModalTitle').textContent = 'Create Survey'; document.getElementById('surveyForm').reset(); document.getElementById('questionsContainer').innerHTML = ''; openModal('surveyModal'); }
+function addQuestion() {
+    const container = document.getElementById('questionsContainer');
+    const idx = surveyQuestions.length;
+    const div = document.createElement('div');
+    div.className = 'question-card';
+    div.id = 'q-'+idx;
+    div.innerHTML = `
+        <div class="q-header"><strong>Question ${idx+1}</strong> <button onclick="removeQuestion(${idx})">✕</button></div>
+        <input type="text" id="qtext-${idx}" placeholder="Question text" style="width:100%;padding:10px 14px;border:1.5px solid #dce3ef;border-radius:40px;margin-bottom:6px;background:#f8faff;" />
+        <select id="qtype-${idx}" style="width:100%;padding:10px 14px;border:1.5px solid #dce3ef;border-radius:40px;background:#f8faff;">
+            <option value="text">Text Answer</option>
+            <option value="rating">Rating (1-5)</option>
+            <option value="boolean">Yes/No</option>
+            <option value="multiple_choice">Multiple Choice</option>
+        </select>
+        <div style="margin-top:6px;"><input type="checkbox" id="qreq-${idx}" /> Required</div>
+    `;
+    container.appendChild(div);
+    surveyQuestions.push({ id:'q'+idx, text:'', type:'text', required:false });
+}
+function removeQuestion(idx) {
+    const el = document.getElementById('q-'+idx);
+    if (el) el.remove();
+    surveyQuestions.splice(idx, 1);
+    document.querySelectorAll('.question-card').forEach((card, i) => {
+        card.id = 'q-'+i;
+        card.querySelector('strong').textContent = 'Question '+(i+1);
+        const btn = card.querySelector('button');
+        btn.onclick = () => removeQuestion(i);
+    });
+}
+function collectQuestions() {
+    const qs = [];
+    document.querySelectorAll('.question-card').forEach((card, i) => {
+        const text = document.getElementById('qtext-'+i)?.value || '';
+        const type = document.getElementById('qtype-'+i)?.value || 'text';
+        const required = document.getElementById('qreq-'+i)?.checked || false;
+        if (text) qs.push({ id:'q'+i, text, type, required });
+    });
+    return qs;
+}
+async function saveSurvey(e) {
+    e.preventDefault();
+    if (!currentUser) return;
+    const title = document.getElementById('surveyTitle').value.trim();
+    const desc = document.getElementById('surveyDesc').value.trim();
+    const target = document.getElementById('surveyTarget').value;
+    const questions = collectQuestions();
+    if (!title || !questions.length) { alert('Add a title and at least one question'); return; }
+    try {
+        const data = { title, description: desc, questions, targetAudience: target, status: 'draft', createdBy: currentUser.uid, createdAt: Date.now(), responses: [] };
+        if (editingSurveyId) await db.collection('surveys').doc(editingSurveyId).update(data);
+        else await db.collection('surveys').add(data);
+        closeModal('surveyModal'); loadSurveys(); addLog('Survey created: ' + title, 'success');
+    } catch(e) { alert('Failed to save survey'); }
+}
+async function sendSurvey(surveyId) {
+    if (!currentUser || !surveyId) return;
+    try { await db.collection('surveys').doc(surveyId).update({ status: 'active', sentAt: Date.now() }); loadSurveys(); addLog('Survey sent!', 'success'); } catch(e) { alert('Failed'); }
+}
+async function closeSurvey(surveyId) {
+    if (!currentUser || !surveyId) return;
+    try { await db.collection('surveys').doc(surveyId).update({ status: 'closed' }); loadSurveys(); addLog('Survey closed', 'info'); } catch(e) { alert('Failed'); }
+}
+async function viewResponses(surveyId) {
+    const survey = allSurveys.find(s => s.id === surveyId);
+    if (!survey) return;
+    document.getElementById('responsesTitle').textContent = survey.title + ' - Responses';
+    const responses = survey.responses || [];
+    let html = '<div style="margin-bottom:12px;">Total: '+responses.length+' responses</div>';
+    if (!responses.length) { html += '<div class="lead-empty">No responses yet</div>'; }
+    else {
+        survey.questions.forEach(q => {
+            html += `<div class="question-card"><strong>${q.text}</strong>`;
+            responses.forEach(r => {
+                const ans = r.answers?.[q.id] || 'N/A';
+                html += `<div style="font-size:13px;color:#2b4a6a;margin-top:4px;">${r.userName || 'Anonymous'}: ${typeof ans === 'string' ? ans : JSON.stringify(ans)}</div>`;
+            });
+            html += '</div>';
+        });
+    }
+    document.getElementById('responsesContent').innerHTML = html;
+    openModal('responsesModal');
+}
+
+// ============================================
+// TWILIO (MODIFIED to log calls to Firebase)
+// ============================================
+const CONFIG = { BASE_URL: window.location.origin };
 function forceDeviceReady() {
-    addLog('⚡ Force setting device to ready...', 'warning');
+    addLog('Force setting device to ready', 'warning');
     deviceReady = true;
-    deviceStatus.textContent = '🟢 Device: Ready (Forced)';
+    deviceStatus.textContent = 'Device: Ready (Forced)';
     deviceStatus.className = 'call-status ready';
     callBtn.disabled = false;
     callStatus.textContent = 'Ready to call';
     callStatus.className = 'call-status idle';
-    addLog('✅ Device force-ready!', 'success');
 }
-
-// ============================================
-// RESUME AUDIO CONTEXT
-// ============================================
 async function resumeAudio() {
-    addLog('🎵 Attempting to resume audio...', 'debug');
-    
+    addLog('Resuming audio...', 'debug');
     try {
-        // Try to resume Twilio's audio context
         if (typeof Twilio !== 'undefined' && Twilio.Device && Twilio.Device._audioContext) {
             const ctx = Twilio.Device._audioContext;
             if (ctx) {
-                addLog(`🎵 AudioContext state: ${ctx.state}`, 'debug');
-                if (ctx.state === 'suspended') {
-                    await ctx.resume();
-                    addLog('✅ AudioContext resumed!', 'success');
-                    audioBadge.textContent = '🎵 Audio: Running ✅';
-                    audioBadge.className = 'badge badge-success';
-                    clickPrompt.textContent = '✅ Audio is now enabled!';
-                    clickPrompt.className = 'click-prompt success';
-                    
-                    // Check if device is ready now
-                    if (device && deviceRegistered && !deviceReady) {
-                        addLog('🔄 Device is registered - marking as ready!', 'success');
-                        deviceReady = true;
-                        deviceStatus.textContent = '🟢 Device: Ready';
-                        deviceStatus.className = 'call-status ready';
-                        callBtn.disabled = false;
-                        callStatus.textContent = 'Ready to call';
-                        callStatus.className = 'call-status idle';
-                        addLog('✅✅✅ DEVICE READY! ✅✅✅', 'success');
-                    }
-                    return true;
-                } else if (ctx.state === 'running') {
-                    addLog('✅ AudioContext already running', 'success');
-                    audioBadge.textContent = '🎵 Audio: Running ✅';
-                    audioBadge.className = 'badge badge-success';
-                    return true;
-                }
+                if (ctx.state === 'suspended') { await ctx.resume(); addLog('AudioContext resumed', 'success'); audioBadge.textContent = 'Audio: Running'; audioBadge.className = 'badge badge-success'; clickPrompt.textContent = 'Audio is enabled'; clickPrompt.className = 'click-prompt success'; if (device && deviceRegistered && !deviceReady) { deviceReady = true; deviceStatus.textContent = 'Device: Ready'; deviceStatus.className = 'call-status ready'; callBtn.disabled = false; callStatus.textContent = 'Ready to call'; callStatus.className = 'call-status idle'; } return true; }
+                else if (ctx.state === 'running') { addLog('Audio already running', 'success'); audioBadge.textContent = 'Audio: Running'; audioBadge.className = 'badge badge-success'; return true; }
             }
         }
-        
-        // Fallback: try to create a new audio context
-        try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-                addLog('✅ New AudioContext created and resumed', 'success');
-                audioBadge.textContent = '🎵 Audio: Running ✅';
-                audioBadge.className = 'badge badge-success';
-                return true;
-            }
-        } catch (e) {
-            addLog(`⚠️ Could not create AudioContext: ${e.message}`, 'warning');
-        }
-        
-    } catch (error) {
-        addLog(`❌ Audio resume error: ${error.message}`, 'error');
-    }
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        if (ac.state === 'suspended') { await ac.resume(); addLog('New AudioContext resumed', 'success'); audioBadge.textContent = 'Audio: Running'; audioBadge.className = 'badge badge-success'; return true; }
+    } catch(e) { addLog('Audio resume error: '+e.message, 'warning'); }
     return false;
 }
-
-// ============================================
-// CHECK SDK
-// ============================================
 function checkSDK() {
     if (typeof Twilio !== 'undefined' && typeof Twilio.Device !== 'undefined') {
-        addLog('✅ Twilio SDK loaded!', 'success');
-        sdkBadge.textContent = '📦 SDK: Loaded ✅';
+        addLog('Twilio SDK loaded', 'success');
+        sdkBadge.textContent = 'SDK: Loaded';
         sdkBadge.className = 'badge badge-success';
         return true;
     } else {
-        addLog('❌ Twilio SDK NOT loaded', 'error');
-        sdkBadge.textContent = '📦 SDK: Not Loaded ❌';
+        addLog('Twilio SDK NOT loaded', 'error');
+        sdkBadge.textContent = 'SDK: Not Loaded';
         sdkBadge.className = 'badge badge-error';
         return false;
     }
 }
-
-// ============================================
-// FETCH ACCESS TOKEN
-// ============================================
 async function fetchToken() {
     try {
-        addLog('🔄 Fetching token...', 'debug');
-        tokenBadge.textContent = '🔑 Token: Fetching...';
+        addLog('Fetching token...', 'debug');
+        tokenBadge.textContent = 'Token: Fetching...';
         tokenBadge.className = 'badge badge-warning';
-        
-        const response = await fetch(`${CONFIG.BASE_URL}/token?identity=agent&t=${Date.now()}`);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        addLog(`✅ Token received (${data.token.length} chars)`, 'success');
-        tokenBadge.textContent = '🔑 Token: OK ✅';
+        const resp = await fetch(CONFIG.BASE_URL+'/token?identity=agent&t='+Date.now());
+        if (!resp.ok) throw new Error('HTTP '+resp.status);
+        const data = await resp.json();
+        addLog('Token received', 'success');
+        tokenBadge.textContent = 'Token: OK';
         tokenBadge.className = 'badge badge-success';
-        
         return data.token;
-    } catch (error) {
-        addLog(`❌ Token fetch failed: ${error.message}`, 'error');
-        tokenBadge.textContent = '🔑 Token: Error ❌';
+    } catch(e) {
+        addLog('Token fetch failed: '+e.message, 'error');
+        tokenBadge.textContent = 'Token: Error';
         tokenBadge.className = 'badge badge-error';
         return null;
     }
 }
-
-// ============================================
-// INITIALIZE DEVICE
-// ============================================
 async function initDevice() {
-    addLog('🚀 Initializing Twilio Device...', 'info');
-    deviceStatus.textContent = '🟡 Device: Connecting...';
+    if (!currentUser) { addLog('Waiting for login', 'info'); return; }
+    addLog('Initializing Twilio Device...', 'info');
+    deviceStatus.textContent = 'Device: Connecting...';
     callStatus.className = 'call-status ringing';
     callStatus.textContent = 'Connecting...';
-    deviceReady = false;
-    deviceRegistered = false;
-    
-    // Check SDK first
-    if (!checkSDK()) {
-        addLog('❌ Cannot initialize: SDK not loaded', 'error');
-        return;
-    }
-    
+    deviceReady = false; deviceRegistered = false;
+    if (!checkSDK()) { addLog('SDK not loaded', 'error'); return; }
     try {
-        // Get token
         const token = await fetchToken();
-        if (!token) {
-            throw new Error('No token received');
-        }
-        
-        // Clean up old device
-        if (device) {
-            addLog('🧹 Cleaning up old device...', 'debug');
-            device.destroy();
-            device = null;
-        }
-        
-        // Create new device
-        addLog('🔧 Creating Device...', 'debug');
-        device = new Twilio.Device(token, {
-            logLevel: 1,
-            allowIncomingWhileBusy: true,
-            codecPreferences: ['opus', 'pcmu']
-        });
-        addLog('✅ Device created', 'success');
-        
-        // Set up event handlers
+        if (!token) throw new Error('No token');
+        if (device) { device.destroy(); device = null; }
+        device = new Twilio.Device(token, { logLevel: 1, allowIncomingWhileBusy: true, codecPreferences: ['opus','pcmu'] });
         device.on('ready', () => {
-            addLog('✅✅✅ DEVICE READY! ✅✅✅', 'success');
-            deviceReady = true;
-            deviceRegistered = true;
-            deviceStatus.textContent = '🟢 Device: Ready';
+            addLog('Device ready', 'success');
+            deviceReady = true; deviceRegistered = true;
+            deviceStatus.textContent = 'Device: Ready';
             deviceStatus.className = 'call-status ready';
             callBtn.disabled = false;
             callStatus.textContent = 'Ready to call';
             callStatus.className = 'call-status idle';
-            stateBadge.textContent = '📊 State: Ready';
+            stateBadge.textContent = 'State: Ready';
             stateBadge.className = 'badge badge-success';
         });
-        
         device.on('error', (error) => {
-            addLog(`❌ Device error: ${error.message}`, 'error');
-            deviceStatus.textContent = '🔴 Device: Error';
+            addLog('Device error: '+error.message, 'error');
+            deviceStatus.textContent = 'Device: Error';
             deviceStatus.className = 'call-status error';
             deviceReady = false;
             callBtn.disabled = true;
         });
-        
         device.on('incoming', (call) => {
-            addLog(`📞 Incoming call from: ${call.parameters.From}`, 'info');
-            acceptCall(call);
+            addLog('Incoming call from: '+call.parameters.From, 'info');
+            currentCall = call;
+            call.accept();
+            callStartTime = Date.now();
+            call.on('accept', () => { 
+                addLog('Call accepted', 'success'); 
+                callStatus.textContent = 'Connected'; 
+                callStatus.className = 'call-status connected'; 
+                hangupBtn.style.display = 'block'; 
+                callBtn.disabled = true;
+                callStartTime = Date.now();
+            });
+            call.on('disconnect', () => { 
+                addLog('Call ended', 'info'); 
+                callStatus.textContent = 'Call ended'; 
+                callStatus.className = 'call-status idle'; 
+                hangupBtn.style.display = 'none'; 
+                callBtn.disabled = false; 
+                const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+                // Log call to Firebase with "answered" status
+                logCallToFirebase({
+                    callSid: call.parameters?.CallSid || null,
+                    leadPhone: phoneInput.value.trim() || call.parameters?.From || 'unknown',
+                    status: 'answered',
+                    startTime: new Date(callStartTime || Date.now()).toISOString(),
+                    endTime: new Date().toISOString(),
+                    duration: duration
+                });
+                currentCall = null;
+                callStartTime = null;
+            });
         });
-        
-        // Register
-        addLog('🔗 Registering device...', 'debug');
         await device.register();
-        addLog('✅ Registration initiated', 'success');
+        addLog('Registration initiated', 'success');
         deviceRegistered = true;
-        stateBadge.textContent = '📊 State: Registered';
+        stateBadge.textContent = 'State: Registered';
         stateBadge.className = 'badge badge-warning';
-        
-        // Check audio context state
         setTimeout(() => {
             try {
-                if (typeof Twilio !== 'undefined' && Twilio.Device && Twilio.Device._audioContext) {
-                    const ctx = Twilio.Device._audioContext;
-                    if (ctx) {
-                        addLog(`🎵 AudioContext state: ${ctx.state}`, 'debug');
-                        audioBadge.textContent = `🎵 Audio: ${ctx.state}`;
-                        if (ctx.state === 'suspended') {
-                            audioBadge.className = 'badge badge-warning';
-                            addLog('💡 Click the page to resume audio', 'info');
-                        } else if (ctx.state === 'running') {
-                            audioBadge.className = 'badge badge-success';
-                        }
-                    }
+                const ctx = Twilio.Device?._audioContext;
+                if (ctx) {
+                    audioBadge.textContent = 'Audio: '+ctx.state;
+                    audioBadge.className = ctx.state === 'suspended' ? 'badge badge-warning' : 'badge badge-success';
+                    if (ctx.state === 'suspended') addLog('Click page to resume audio', 'info');
                 }
-            } catch (e) {}
+            } catch(e) {}
         }, 1000);
-        
-    } catch (error) {
-        addLog(`❌ Init error: ${error.message}`, 'error');
-        deviceStatus.textContent = '🔴 Device: Error';
+    } catch(e) {
+        addLog('Init error: '+e.message, 'error');
+        deviceStatus.textContent = 'Device: Error';
         deviceStatus.className = 'call-status error';
     }
 }
-
-// ============================================
-// ACCEPT INCOMING CALL
-// ============================================
-function acceptCall(call) {
-    currentCall = call;
-    call.accept();
-    
-    call.on('accept', () => {
-        addLog('✅ Call accepted', 'success');
-        callStatus.textContent = 'Connected';
-        callStatus.className = 'call-status connected';
-        hangupBtn.style.display = 'block';
-        callBtn.disabled = true;
-    });
-    
-    call.on('disconnect', () => {
-        addLog('📞 Call ended', 'info');
-        callStatus.textContent = 'Call ended';
-        callStatus.className = 'call-status idle';
-        hangupBtn.style.display = 'none';
-        callBtn.disabled = false;
-        currentCall = null;
-    });
-}
-
-// ============================================
-// MAKE CALL
-// ============================================
 async function makeCall() {
     const number = phoneInput.value.trim();
-    if (!number) {
-        alert('Enter a phone number');
-        return;
-    }
-    
-    // Try to resume audio first
+    if (!number) { alert('Enter a phone number'); return; }
     await resumeAudio();
-    
-    if (!deviceReady || !device) {
-        addLog('❌ Device not ready - trying to reconnect...', 'error');
-        initDevice();
-        return;
-    }
-    
-    addLog(`📞 Dialing: ${number}`, 'info');
+    if (!deviceReady || !device) { addLog('Device not ready - reconnecting', 'error'); initDevice(); return; }
+    addLog('Dialing: '+number, 'info');
     callStatus.textContent = 'Ringing...';
     callStatus.className = 'call-status ringing';
     callBtn.disabled = true;
-    
+    callStartTime = Date.now();
     try {
-        currentCall = await device.connect({
-            params: { To: number }
-        });
-        
+        currentCall = await device.connect({ params: { To: number } });
         currentCall.on('accept', () => {
-            addLog('✅ Call connected', 'success');
+            addLog('Call connected', 'success');
             callStatus.textContent = 'Connected';
             callStatus.className = 'call-status connected';
             hangupBtn.style.display = 'block';
+            callStartTime = Date.now();
         });
-        
         currentCall.on('disconnect', () => {
-            addLog('📞 Call ended', 'info');
+            addLog('Call ended', 'info');
             callStatus.textContent = 'Call ended';
             callStatus.className = 'call-status idle';
             hangupBtn.style.display = 'none';
             callBtn.disabled = false;
+            const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+            // Log call to Firebase with "answered" status
+            logCallToFirebase({
+                callSid: currentCall?.parameters?.CallSid || null,
+                leadPhone: number,
+                status: 'answered',
+                startTime: new Date(callStartTime || Date.now()).toISOString(),
+                endTime: new Date().toISOString(),
+                duration: duration
+            });
             currentCall = null;
+            callStartTime = null;
         });
-        
         currentCall.on('error', (error) => {
-            addLog(`❌ Call error: ${error.message}`, 'error');
+            addLog('Call error: '+error.message, 'error');
             callStatus.textContent = 'Error';
             callStatus.className = 'call-status error';
             callBtn.disabled = false;
+            const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+            // Log call to Firebase with "failed" status
+            logCallToFirebase({
+                callSid: currentCall?.parameters?.CallSid || null,
+                leadPhone: number,
+                status: 'failed',
+                startTime: new Date(callStartTime || Date.now()).toISOString(),
+                endTime: new Date().toISOString(),
+                duration: duration,
+                notes: error.message
+            });
+            currentCall = null;
+            callStartTime = null;
         });
-        
-    } catch (error) {
-        addLog(`❌ Failed to call: ${error.message}`, 'error');
+    } catch(e) {
+        addLog('Failed to call: '+e.message, 'error');
         callStatus.textContent = 'Error';
         callStatus.className = 'call-status error';
         callBtn.disabled = false;
+        // Log failed call to Firebase
+        logCallToFirebase({
+            leadPhone: number,
+            status: 'failed',
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString(),
+            duration: 0,
+            notes: e.message
+        });
+        callStartTime = null;
     }
 }
-
-// ============================================
-// HANG UP
-// ============================================
 function hangup() {
     if (currentCall) {
-        addLog('🔴 Hanging up...', 'info');
+        addLog('Hanging up', 'info');
         currentCall.disconnect();
         hangupBtn.style.display = 'none';
         callBtn.disabled = false;
         callStatus.textContent = 'Call ended';
         callStatus.className = 'call-status idle';
+        const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+        // Log call as "ended" (could be considered "answered" since it was connected)
+        logCallToFirebase({
+            callSid: currentCall?.parameters?.CallSid || null,
+            leadPhone: phoneInput.value.trim(),
+            status: 'answered',
+            startTime: new Date(callStartTime || Date.now()).toISOString(),
+            endTime: new Date().toISOString(),
+            duration: duration
+        });
         currentCall = null;
+        callStartTime = null;
     }
 }
-
-// ============================================
-// GET MICROPHONE PERMISSION
-// ============================================
 async function getMicrophone() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        addLog('✅ Microphone: Available', 'success');
-        stream.getTracks().forEach(track => track.stop());
-        return true;
-    } catch (error) {
-        addLog(`⚠️ Microphone: ${error.message}`, 'warning');
-        return false;
-    }
+    try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); stream.getTracks().forEach(t=>t.stop()); addLog('Microphone available', 'success'); return true; } catch(e) { addLog('Microphone: '+e.message, 'warning'); return false; }
 }
 
 // ============================================
-// AUTO-RESUME ON ANY CLICK
+// EVENT LISTENERS & INIT
 // ============================================
-document.addEventListener('click', function resumeOnClick() {
-    resumeAudio();
-}, { once: true });
+document.addEventListener('click', function resumeOnce() { resumeAudio(); }, { once: true });
+document.querySelectorAll('button').forEach(b => b.addEventListener('click', ()=>setTimeout(resumeAudio,100)));
+leadSearch.addEventListener('input', renderLeads);
+leadStatusFilter.addEventListener('change', renderLeads);
+leadAgentFilter.addEventListener('change', renderLeads);
+phoneInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') makeCall(); });
+window.addEventListener('error', (e) => addLog('Unhandled error: '+e.message, 'error'));
 
-// Also resume on any button click
-document.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => {
-        setTimeout(resumeAudio, 100);
-    });
-});
-
-// ============================================
-// INIT
-// ============================================
 async function initialize() {
-    addLog('🚀 Agent dashboard loading...', 'info');
-    addLog(`📡 Backend: ${CONFIG.BASE_URL}`, 'debug');
-    
-    // Check SDK
+    addLog('Agent dashboard loading', 'info');
     if (!checkSDK()) {
-        addLog('⏳ Waiting for SDK to load...', 'warning');
-        setTimeout(() => {
-            if (typeof Twilio !== 'undefined' && typeof Twilio.Device !== 'undefined') {
-                addLog('✅ SDK loaded!', 'success');
-                initDevice();
-            } else {
-                addLog('❌ SDK still not loaded', 'error');
-            }
-        }, 2000);
+        addLog('Waiting for SDK...', 'warning');
+        setTimeout(() => { if (typeof Twilio !== 'undefined' && typeof Twilio.Device !== 'undefined') { addLog('SDK loaded', 'success'); if (currentUser) initDevice(); } else addLog('SDK still not loaded', 'error'); }, 2000);
         return;
     }
-    
-    // Check microphone
     await getMicrophone();
-    
-    // Initialize device
-    setTimeout(initDevice, 500);
+    if (currentUser) initDevice();
 }
-
-// Enter key for phone input
-phoneInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') makeCall();
-});
-
-// Start
+addLog('Tap the page or "Resume Audio" to enable audio', 'info');
 initialize();
+if (currentUser) { setTimeout(loadLeads, 500); setTimeout(loadMessages, 600); setTimeout(loadSurveys, 700); }
 
-// Handle unhandled errors
-window.addEventListener('error', (event) => {
-    addLog(`⚠️ Unhandled error: ${event.message}`, 'error');
+document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', (e) => { if (e.target === el) el.classList.remove('show'); });
 });
-
-addLog('💡 Click the page or "Resume Audio" button to enable audio', 'info');
 </script>
-
 </body>
 </html>
