@@ -273,11 +273,11 @@ def get_recording(recording_sid):
         return jsonify({"error": str(e)}), 404
 
 # ============================================
-# RECORDING CALLBACK - UPDATED WITH FIXES
+# RECORDING CALLBACK - COMPLETE WITH ALL FIELDS
 # ============================================
 @app.route('/recording-callback', methods=['POST'])
 def recording_callback():
-    """Receive recording from Twilio, save to Firebase, and transcribe"""
+    """Receive recording from Twilio, save ALL fields to Firebase, and transcribe"""
     print("\n📨 RECORDING CALLBACK RECEIVED!")
     data = dict(request.form)
     print(json.dumps(data, indent=2))
@@ -286,35 +286,72 @@ def recording_callback():
     call_sid = data.get('CallSid')
     recording_sid = data.get('RecordingSid')
     recording_duration = data.get('RecordingDuration')
+    recording_status = data.get('RecordingStatus', 'completed')
     
-    # ===== SAVE RECORDING SID TO FIREBASE (with create if not exists) =====
+    # ===== GET AGENT NAME FROM THE CALL =====
+    agent_name = None
+    agent_id = None
+    lead_phone = None
+    call_status = 'answered'
+    call_duration = int(recording_duration) if recording_duration else 0
+    
+    try:
+        # Try to fetch call details from Twilio
+        if call_sid and twilio_client:
+            call = twilio_client.calls(call_sid).fetch()
+            call_status = call.status
+            call_duration = int(call.duration) if call.duration else call_duration
+            # Try to get the agent from the call parameters or from your stored mapping
+            # For now, we'll use the from_ or to field
+            lead_phone = call.to if call.to else call.from_
+            print(f"📞 Call details from Twilio: status={call_status}, duration={call_duration}, to={call.to}")
+    except Exception as e:
+        print(f"⚠️ Could not fetch call details from Twilio: {e}")
+        # Use values from the callback
+        lead_phone = data.get('To') or data.get('From') or 'unknown'
+    
+    # If agent_name is not available, try to get it from your app context
+    # You can pass it in the call request and store it in a dict
+    # For now, we'll set a default
+    if not agent_name:
+        # Try to get from the call parameters
+        agent_name = data.get('AgentName') or data.get('agent_name') or 'Unknown Agent'
+    
+    # ===== SAVE ALL CALL DETAILS TO FIREBASE =====
     if call_sid and recording_sid and db is not None:
         try:
             doc_ref = db.collection('calls').document(call_sid)
             doc = doc_ref.get()
             
+            # Build complete call data with ALL fields
+            call_data = {
+                'callSid': call_sid,
+                'recordingSid': recording_sid,
+                'recordingUrl': recording_url,
+                'recordingDuration': int(recording_duration) if recording_duration else None,
+                'recordingStatus': recording_status,
+                'hasRecording': True,
+                'duration': call_duration,
+                'status': call_status,
+                'leadPhone': lead_phone,
+                'agentName': agent_name,
+                'agentId': agent_id,
+                'direction': data.get('Direction', 'outbound'),
+                'startTime': datetime.now().isoformat(),
+                'updatedAt': firestore.SERVER_TIMESTAMP
+            }
+            
             if doc.exists:
-                doc_ref.update({
-                    'recordingSid': recording_sid,
-                    'recordingUrl': recording_url,
-                    'recordingDuration': int(recording_duration) if recording_duration else None,
-                    'hasRecording': True,
-                    'updatedAt': firestore.SERVER_TIMESTAMP
-                })
-                print(f"✅ Updated recording SID {recording_sid} for call {call_sid}")
+                # Merge with existing data, preserving any existing fields
+                doc_ref.update(call_data)
+                print(f"✅ Updated call {call_sid} with recording and ALL details")
             else:
-                doc_ref.set({
-                    'callSid': call_sid,
-                    'recordingSid': recording_sid,
-                    'recordingUrl': recording_url,
-                    'recordingDuration': int(recording_duration) if recording_duration else None,
-                    'hasRecording': True,
-                    'createdAt': firestore.SERVER_TIMESTAMP,
-                    'updatedAt': firestore.SERVER_TIMESTAMP
-                })
-                print(f"✅ Created new call document with recording SID {recording_sid}")
+                # Create new document with all fields
+                call_data['createdAt'] = firestore.SERVER_TIMESTAMP
+                doc_ref.set(call_data)
+                print(f"✅ Created new call document with ALL details for {call_sid}")
         except Exception as e:
-            print(f"❌ Failed to save recording to Firebase: {e}")
+            print(f"❌ Failed to save to Firebase: {e}")
     elif call_sid and recording_sid:
         print(f"⚠️ Firebase not available - recording SID {recording_sid} not saved")
     
