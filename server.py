@@ -11,6 +11,31 @@ import json
 import traceback
 from datetime import datetime
 
+# ============================================
+# FIREBASE ADMIN SDK - NEW ADDITION
+# ============================================
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+    
+    # Check if service account key exists
+    if os.path.exists("serviceAccountKey.json"):
+        cred = credentials.Certificate("serviceAccountKey.json")
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("✅ Firebase connected - recordings will be saved!")
+    else:
+        db = None
+        print("⚠️ serviceAccountKey.json not found - recordings NOT saved to Firebase")
+        print("   Get it from: Firebase Console > Project Settings > Service Accounts")
+except ImportError:
+    db = None
+    print("⚠️ firebase-admin not installed - recordings NOT saved to Firebase")
+    print("   Install with: pip install firebase-admin")
+except Exception as e:
+    db = None
+    print(f"⚠️ Firebase error: {e}")
+
 app = Flask(__name__)
 CORS(app)
 
@@ -202,11 +227,11 @@ def make_call():
     })
 
 # ============================================
-# RECORDING CALLBACK
+# RECORDING CALLBACK - UPDATED WITH FIREBASE SAVE
 # ============================================
 @app.route('/recording-callback', methods=['POST'])
 def recording_callback():
-    """Receive recording from Twilio and transcribe"""
+    """Receive recording from Twilio, save to Firebase, and transcribe"""
     print("\n📨 RECORDING CALLBACK RECEIVED!")
     data = dict(request.form)
     print(json.dumps(data, indent=2))
@@ -216,6 +241,24 @@ def recording_callback():
     recording_sid = data.get('RecordingSid')
     recording_duration = data.get('RecordingDuration')
     
+    # ===== NEW: SAVE RECORDING SID TO FIREBASE =====
+    if call_sid and recording_sid and db is not None:
+        try:
+            # Update the call document with recording SID
+            db.collection('calls').document(call_sid).update({
+                'recordingSid': recording_sid,
+                'recordingUrl': recording_url,
+                'recordingDuration': int(recording_duration) if recording_duration else None,
+                'hasRecording': True,
+                'updatedAt': firestore.SERVER_TIMESTAMP
+            })
+            print(f"✅ Saved recording SID {recording_sid} to call {call_sid} in Firebase")
+        except Exception as e:
+            print(f"❌ Failed to save recording to Firebase: {e}")
+    elif call_sid and recording_sid:
+        print(f"⚠️ Firebase not available - recording SID {recording_sid} not saved")
+    
+    # ===== TRANSCRIPTION - UNCHANGED =====
     if recording_url and DEEPGRAM_API_KEY:
         try:
             print("🔄 Sending to Deepgram for transcription...")
@@ -236,6 +279,20 @@ def recording_callback():
                 result = response.json()
                 try:
                     transcript = result['results']['channels'][0]['alternatives'][0]['transcript']
+                    
+                    # ===== NEW: Also save transcript to Firebase =====
+                    if call_sid and transcript and db is not None:
+                        try:
+                            db.collection('calls').document(call_sid).update({
+                                'transcript': transcript,
+                                'hasTranscript': True,
+                                'transcriptUpdatedAt': firestore.SERVER_TIMESTAMP
+                            })
+                            print(f"📝 Saved transcript for call {call_sid} to Firebase")
+                        except Exception as e:
+                            print(f"⚠️ Failed to save transcript to Firebase: {e}")
+                    
+                    # Keep existing in-memory storage (unchanged)
                     transcripts[call_sid or recording_sid] = {
                         'text': transcript,
                         'recording_url': recording_url,
@@ -254,14 +311,14 @@ def recording_callback():
     return "OK", 200
 
 # ============================================
-# GET TRANSCRIPTS
+# GET TRANSCRIPTS - UNCHANGED
 # ============================================
 @app.route('/transcripts')
 def get_transcripts():
     return jsonify(transcripts)
 
 # ============================================
-# GET CALL STATUS
+# GET CALL STATUS - UNCHANGED
 # ============================================
 @app.route('/call-status/<call_sid>')
 def get_call_status(call_sid):
@@ -280,7 +337,7 @@ def get_call_status(call_sid):
         return jsonify({"error": str(e)}), 404
 
 # ============================================
-# HEALTH CHECK
+# HEALTH CHECK - UNCHANGED
 # ============================================
 @app.route('/ping')
 def ping():
@@ -300,7 +357,8 @@ def debug():
         "has_deepgram": bool(DEEPGRAM_API_KEY),
         "base_url": BASE_URL,
         "twiml_app_sid": TWIML_APP_SID[:10] + "..." if TWIML_APP_SID else None,
-        "api_key_configured": bool(TWILIO_API_KEY_SID and TWILIO_API_KEY_SID != "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        "api_key_configured": bool(TWILIO_API_KEY_SID and TWILIO_API_KEY_SID != "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
+        "firebase_initialized": db is not None
     })
 
 if __name__ == '__main__':
