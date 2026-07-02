@@ -18,7 +18,7 @@ CORS(app)
 # CREDENTIALS - REPLACE WITH YOURS
 # ============================================
 TWILIO_ACCOUNT_SID = "AC7157ac32a7c1840500f153d3b71f9979"
-TWILIO_AUTH_TOKEN = "571ef423b558b2c6cf953e01c0653835"
+TWILIO_AUTH_TOKEN = "dfd6a9f24bd5abd9607fdf7336d9b82f"
 
 # Create API Key in Twilio Console: Settings > API Keys & Tokens
 TWILIO_API_KEY_SID = "SK184c8eee37a3f35fed669225cd7e1a0c"
