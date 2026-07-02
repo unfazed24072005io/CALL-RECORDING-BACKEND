@@ -246,6 +246,33 @@ def make_call():
     })
 
 # ============================================
+# GET RECORDING URL FROM TWILIO - NEW ENDPOINT
+# ============================================
+@app.route('/recording/<recording_sid>', methods=['GET'])
+def get_recording(recording_sid):
+    """Get recording URL from Twilio"""
+    try:
+        if not twilio_client:
+            return jsonify({"error": "Twilio client not initialized"}), 500
+        
+        # Fetch recording from Twilio
+        recording = twilio_client.recordings(recording_sid).fetch()
+        
+        # Generate the recording URL
+        recording_url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Recordings/{recording_sid}.mp3"
+        
+        return jsonify({
+            "recording_sid": recording_sid,
+            "recording_url": recording_url,
+            "status": recording.status,
+            "duration": recording.duration,
+            "call_sid": recording.call_sid
+        })
+    except Exception as e:
+        print(f"❌ Error fetching recording: {e}")
+        return jsonify({"error": str(e)}), 404
+
+# ============================================
 # RECORDING CALLBACK - UPDATED WITH FIXES
 # ============================================
 @app.route('/recording-callback', methods=['POST'])
