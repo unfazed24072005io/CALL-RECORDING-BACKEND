@@ -376,7 +376,7 @@
       </div>
 
       <div class="card">
-        <div class="click-prompt" id="clickPrompt" onclick="resumeAudio()">
+        <div class="click-prompt" id="clickPrompt" onclick="resumeAudio()" style="display: none;">
           <strong>Tap here</strong> or anywhere to enable audio
         </div>
         <h3>Make a Call</h3>
@@ -400,7 +400,7 @@
       </div>
     </div>
 
-    <!-- LEADS PAGE -->
+    <!-- LEADS PAGE - UPDATED WITH STATUS MANAGEMENT -->
     <div id="leadsPage" class="page">
       <div class="header">
         <h1>Leads</h1>
@@ -421,6 +421,11 @@
             <option value="proposal">Proposal</option>
             <option value="won">Won</option>
             <option value="lost">Lost</option>
+            <option value="not_picked">Not Picked</option>
+            <option value="picked">Picked</option>
+            <option value="callback">Callback Requested</option>
+            <option value="not_interested">Not Interested</option>
+            <option value="follow_up">Follow Up</option>
           </select>
           <select id="leadAgentFilter">
             <option value="all">All Agents</option>
@@ -430,6 +435,48 @@
         <div id="leadsList">
           <div class="lead-empty">No leads found</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ===== LEAD STATUS MODAL ===== -->
+    <div id="leadStatusModal" class="modal-overlay">
+      <div class="modal-box">
+        <h2 id="leadStatusModalTitle">Update Lead Status</h2>
+        <form id="leadStatusForm" onsubmit="saveLeadStatus(event)">
+          <div class="form-group">
+            <label>Lead</label>
+            <p id="leadStatusLeadName" style="font-weight:600;color:#0b2b4a;padding:8px 0;">Loading...</p>
+            <input type="hidden" id="leadStatusLeadId" />
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="leadStatusSelect" required>
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="picked">Picked</option>
+              <option value="not_picked">Not Picked</option>
+              <option value="callback">Callback Requested</option>
+              <option value="not_interested">Not Interested</option>
+              <option value="follow_up">Follow Up</option>
+              <option value="proposal">Proposal</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Custom Status (Optional)</label>
+            <input type="text" id="leadCustomStatus" placeholder="e.g., Left voicemail, Sent proposal..." />
+            <small style="color:#6f7e9b;font-size:11px;">Add a custom status note that will be stored alongside the status</small>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="leadStatusNotes" rows="3" placeholder="Add any notes about this lead..."></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" onclick="closeModal('leadStatusModal')">Cancel</button>
+            <button type="submit" class="btn-confirm">Update Status</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -605,7 +652,7 @@
 
 <script>
 // ============================================
-// FIREBASE CONFIG (unchanged)
+// FIREBASE CONFIG
 // ============================================
 const firebaseConfig = {
     apiKey: "AIzaSyDqDnTWFf0xluB_U41GXxCYfKsGK5QX9Ag",
@@ -621,7 +668,7 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // ============================================
-// STATE (unchanged)
+// STATE
 // ============================================
 let currentUser = null;
 let authInitialized = false;
@@ -632,13 +679,14 @@ let currentMessageFilter = 'all';
 let currentSurveyFilter = 'all';
 let editingSurveyId = null;
 let editingMessageId = null;
+let editingLeadId = null;
 
 // Twilio state
 let device = null;
 let currentCall = null;
 let deviceReady = false;
 let deviceRegistered = false;
-let callStartTime = null; // Track call start time for duration
+let callStartTime = null;
 
 // DOM refs
 const loginContainer = document.getElementById('loginContainer');
@@ -674,7 +722,7 @@ const surveysList = document.getElementById('surveysList');
 const surveyStatus = document.getElementById('surveyStatus');
 
 // ============================================
-// AUTH (unchanged)
+// AUTH
 // ============================================
 auth.onAuthStateChanged((user) => {
     authInitialized = true;
@@ -727,7 +775,7 @@ async function handleLogout() {
 }
 
 // ============================================
-// UTILITIES (unchanged)
+// UTILITIES
 // ============================================
 function addLog(msg, type='info') {
     const time = new Date().toLocaleTimeString();
@@ -750,87 +798,115 @@ function switchTab(tab) {
 }
 
 // ============================================
-// CALL LOGGING TO FIREBASE (NEW)
+// LEAD STATUS MANAGEMENT
 // ============================================
-async function logCallToFirebase(callData) {
-    if (!currentUser) {
-        addLog('Cannot log call: No user logged in', 'error');
-        return;
-    }
+function openLeadStatusModal(leadId) {
+    const lead = allLeads.find(l => l.id === leadId);
+    if (!lead) return;
+    
+    editingLeadId = leadId;
+    document.getElementById('leadStatusLeadId').value = leadId;
+    document.getElementById('leadStatusLeadName').textContent = `${lead.firstName} ${lead.lastName}`;
+    document.getElementById('leadStatusSelect').value = lead.status || 'new';
+    document.getElementById('leadCustomStatus').value = lead.customStatus || '';
+    document.getElementById('leadStatusNotes').value = lead.notes || '';
+    document.getElementById('leadStatusModalTitle').textContent = `Update Status: ${lead.firstName} ${lead.lastName}`;
+    openModal('leadStatusModal');
+}
 
+async function saveLeadStatus(e) {
+    e.preventDefault();
+    if (!currentUser) return;
+    
+    const leadId = document.getElementById('leadStatusLeadId').value;
+    const status = document.getElementById('leadStatusSelect').value;
+    const customStatus = document.getElementById('leadCustomStatus').value.trim();
+    const notes = document.getElementById('leadStatusNotes').value.trim();
+    
+    if (!leadId) { alert('No lead selected'); return; }
+    
     try {
-        // Get lead info from phone number if available
-        let leadInfo = null;
-        if (callData.leadPhone) {
-            const leadQuery = await db.collection('leads')
-                .where('phone', '==', callData.leadPhone)
-                .limit(1)
-                .get();
-            if (!leadQuery.empty) {
-                const doc = leadQuery.docs[0];
-                const data = doc.data();
-                leadInfo = {
-                    id: doc.id,
-                    firstName: data.firstName || '',
-                    lastName: data.lastName || '',
-                    email: data.email || ''
-                };
-            }
-        }
-
-        const callRecord = {
-            callSid: callData.callSid || null,
-            agentId: currentUser.uid,
-            agentName: currentUser.displayName || currentUser.email || 'Unknown Agent',
-            leadId: leadInfo?.id || null,
-            leadName: leadInfo ? `${leadInfo.firstName} ${leadInfo.lastName}`.trim() : callData.leadName || null,
-            leadPhone: callData.leadPhone || phoneInput.value.trim() || 'unknown',
-            direction: 'outbound',
-            status: callData.status || 'unknown',
-            startTime: callData.startTime || new Date().toISOString(),
-            endTime: callData.endTime || new Date().toISOString(),
-            duration: callData.duration || 0,
-            recordingSid: callData.recordingSid || null,
-            recordingUrl: callData.recordingUrl || null,
-            transcript: callData.transcript || null,
-            notes: callData.notes || '',
-            callType: 'standard',
-            outcome: callData.outcome || null,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
-        // Add to 'calls' collection
-        await db.collection('calls').add(callRecord);
-        addLog(`Call logged to Firebase: ${callData.leadPhone} (${callData.status})`, 'success');
+        await db.collection('leads').doc(leadId).update({
+            status: status,
+            customStatus: customStatus || null,
+            notes: notes || null,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastUpdatedBy: currentUser.uid,
+            lastUpdatedByName: currentUser.displayName || currentUser.email || 'Unknown'
+        });
         
-        // If lead exists, update their status to 'contacted'
-        if (leadInfo?.id) {
-            await db.collection('leads').doc(leadInfo.id).update({
-                status: 'contacted',
-                lastContacted: new Date().toISOString(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            addLog(`Lead ${leadInfo.firstName} ${leadInfo.lastName} updated to contacted`, 'success');
+        const lead = allLeads.find(l => l.id === leadId);
+        if (lead) {
+            lead.status = status;
+            lead.customStatus = customStatus;
+            lead.notes = notes;
+            lead.lastUpdatedBy = currentUser.uid;
+            lead.lastUpdatedByName = currentUser.displayName || currentUser.email || 'Unknown';
         }
+        
+        closeModal('leadStatusModal');
+        renderLeads();
+        addLog(`Lead status updated to: ${status}${customStatus ? ' (' + customStatus + ')' : ''}`, 'success');
     } catch (error) {
-        console.error('Error logging call:', error);
-        addLog('Error logging call to Firebase: ' + error.message, 'error');
+        console.error('Error updating lead status:', error);
+        alert('Failed to update lead status. Please try again.');
+    }
+}
+
+async function quickUpdateStatus(leadId, newStatus) {
+    if (!currentUser || !newStatus) return;
+    try {
+        await db.collection('leads').doc(leadId).update({ 
+            status: newStatus,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastUpdatedBy: currentUser.uid,
+            lastUpdatedByName: currentUser.displayName || currentUser.email || 'Unknown'
+        });
+        const lead = allLeads.find(l => l.id === leadId);
+        if (lead) {
+            lead.status = newStatus;
+            lead.lastUpdatedBy = currentUser.uid;
+            lead.lastUpdatedByName = currentUser.displayName || currentUser.email || 'Unknown';
+        }
+        renderLeads();
+        addLog(`Quick status update: ${leadId} → ${newStatus}`, 'success');
+    } catch(e) {
+        console.error('Error updating status:', e);
+        alert('Failed to update status');
     }
 }
 
 // ============================================
-// LEADS (unchanged)
+// LEADS
 // ============================================
 async function loadLeads() {
     if (!currentUser) return;
     try {
         leadsStatus.textContent = 'Loading leads...';
-        const snapshot = await db.collection('leads').where('assignedTo', 'in', [null, currentUser.uid]).get();
+        const snapshot = await db.collection('leads')
+            .where('assignedTo', 'in', [null, currentUser.uid])
+            .orderBy('createdAt', 'desc')
+            .get();
         const leads = [];
         snapshot.forEach(doc => {
             const d = doc.data();
-            leads.push({ id: doc.id, ...d, firstName: d.firstName || '', lastName: d.lastName || '', phone: d.phone || '', email: d.email || '', status: d.status || 'new', assignedTo: d.assignedTo || null, assignedToName: d.assignedToName || '', createdAt: d.createdAt || Date.now() });
+            leads.push({ 
+                id: doc.id, 
+                ...d, 
+                firstName: d.firstName || '', 
+                lastName: d.lastName || '', 
+                phone: d.phone || '', 
+                email: d.email || '', 
+                status: d.status || 'new',
+                customStatus: d.customStatus || null,
+                notes: d.notes || null,
+                assignedTo: d.assignedTo || null, 
+                assignedToName: d.assignedToName || '',
+                lastUpdatedBy: d.lastUpdatedBy || null,
+                lastUpdatedByName: d.lastUpdatedByName || null,
+                createdAt: d.createdAt?.toMillis?.() || d.createdAt || Date.now(),
+                updatedAt: d.updatedAt?.toMillis?.() || d.updatedAt || Date.now()
+            });
         });
         allLeads = leads;
         const unassigned = leads.filter(l => !l.assignedTo).length;
@@ -838,8 +914,12 @@ async function loadLeads() {
         leadBadge.style.display = unassigned > 0 ? 'inline' : 'none';
         leadsStatus.textContent = leads.length + ' leads loaded';
         renderLeads();
-    } catch(e) { leadsStatus.textContent = 'Error loading leads'; }
+    } catch(e) { 
+        console.error('Error loading leads:', e);
+        leadsStatus.textContent = 'Error loading leads'; 
+    }
 }
+
 function renderLeads() {
     const search = leadSearch.value.toLowerCase();
     const statusFilter = leadStatusFilter.value;
@@ -848,7 +928,8 @@ function renderLeads() {
         const name = (l.firstName+' '+l.lastName).toLowerCase();
         const phone = (l.phone || '').toLowerCase();
         const email = (l.email || '').toLowerCase();
-        return (!search || name.includes(search) || phone.includes(search) || email.includes(search)) &&
+        const customStatus = (l.customStatus || '').toLowerCase();
+        return (!search || name.includes(search) || phone.includes(search) || email.includes(search) || customStatus.includes(search)) &&
                (statusFilter === 'all' || l.status === statusFilter) &&
                (agentFilter === 'all' || l.assignedToName === agentFilter);
     });
@@ -857,39 +938,62 @@ function renderLeads() {
     if (!filtered.length) { leadsList.innerHTML = '<div class="lead-empty">No leads found</div>'; return; }
     let html = '';
     filtered.forEach(l => {
-        const statusColors = { new:'badge-info', contacted:'badge-warning', proposal:'badge-warning', won:'badge-success', lost:'badge-error' };
+        const statusColors = { 
+            new:'badge-info', 
+            contacted:'badge-warning', 
+            picked:'badge-success',
+            not_picked:'badge-error',
+            callback:'badge-warning',
+            not_interested:'badge-error',
+            follow_up:'badge-info',
+            proposal:'badge-warning', 
+            won:'badge-success', 
+            lost:'badge-error' 
+        };
         const sc = statusColors[l.status] || 'badge-info';
+        const statusLabel = l.customStatus ? `${l.status} (${l.customStatus})` : l.status;
+        const lastUpdated = l.lastUpdatedByName ? `by ${l.lastUpdatedByName}` : '';
+        const updatedTime = l.updatedAt ? ` · ${new Date(l.updatedAt).toLocaleString()}` : '';
+        
         html += `<div class="lead-item">
-            <div>
+            <div style="flex:1;">
                 <div class="lead-name">${l.firstName} ${l.lastName}</div>
                 <div class="lead-phone">${l.phone} ${l.email ? '· ' + l.email : ''}</div>
-                <div class="flex" style="margin-top:4px;">
-                    <span class="badge ${sc}">${l.status}</span>
+                <div class="flex" style="margin-top:4px;flex-wrap:wrap;">
+                    <span class="badge ${sc}">${statusLabel}</span>
                     ${l.assignedTo ? `<span class="badge badge-info">${l.assignedToName || 'Assigned'}</span>` : `<span class="badge badge-warning">Unassigned</span>`}
+                    ${l.notes ? `<span class="badge badge-info" style="cursor:help;" title="${l.notes}">Notes</span>` : ''}
                 </div>
+                ${l.lastUpdatedByName ? `<div style="font-size:10px;color:#6f7e9b;margin-top:2px;">Updated ${lastUpdated}${updatedTime}</div>` : ''}
             </div>
-            <div class="lead-actions">
-                <button class="lead-call" onclick="callLead('${l.phone}')">Call</button>
-                <select class="lead-status-select" onchange="updateLeadStatus('${l.id}', this.value)">
-                    <option value="new" ${l.status==='new'?'selected':''}>New</option>
-                    <option value="contacted" ${l.status==='contacted'?'selected':''}>Contacted</option>
-                    <option value="proposal" ${l.status==='proposal'?'selected':''}>Proposal</option>
-                    <option value="won" ${l.status==='won'?'selected':''}>Won</option>
-                    <option value="lost" ${l.status==='lost'?'selected':''}>Lost</option>
+            <div class="lead-actions" style="flex-direction:column;gap:4px;align-items:flex-end;">
+                <div style="display:flex;gap:4px;">
+                    <button class="lead-call" onclick="callLead('${l.phone}')">Call</button>
+                    <button onclick="openLeadStatusModal('${l.id}')" style="padding:6px 14px;border:none;border-radius:40px;cursor:pointer;font-size:11px;font-weight:600;background:#f5b342;color:white;">Status</button>
+                </div>
+                <select class="lead-status-select" onchange="quickUpdateStatus('${l.id}', this.value)" style="width:100%;">
+                    <option value="">Quick Status</option>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="picked">Picked</option>
+                    <option value="not_picked">Not Picked</option>
+                    <option value="callback">Callback</option>
+                    <option value="not_interested">Not Interested</option>
+                    <option value="follow_up">Follow Up</option>
+                    <option value="proposal">Proposal</option>
+                    <option value="won">Won</option>
+                    <option value="lost">Lost</option>
                 </select>
             </div>
         </div>`;
     });
     leadsList.innerHTML = html;
 }
-async function updateLeadStatus(leadId, newStatus) {
-    if (!currentUser) return;
-    try { await db.collection('leads').doc(leadId).update({ status: newStatus, updatedAt: Date.now() }); const l = allLeads.find(x=>x.id===leadId); if(l) l.status=newStatus; renderLeads(); } catch(e) {}
-}
+
 function callLead(phone) { switchTab('calls'); document.getElementById('phoneInput').value = phone; setTimeout(makeCall, 300); }
 
 // ============================================
-// MESSAGES (unchanged)
+// MESSAGES
 // ============================================
 async function loadMessages() {
     if (!currentUser) return;
@@ -966,7 +1070,7 @@ async function sendMessageNow(msgId) {
 }
 
 // ============================================
-// SURVEYS (unchanged)
+// SURVEYS
 // ============================================
 let surveyQuestions = [];
 async function loadSurveys() {
@@ -1100,7 +1204,84 @@ async function viewResponses(surveyId) {
 }
 
 // ============================================
-// TWILIO (MODIFIED to log calls to Firebase)
+// CALL LOGGING TO FIREBASE
+// ============================================
+async function logCallToFirebase(callData) {
+    if (!currentUser) {
+        addLog('Cannot log call: No user logged in', 'error');
+        return;
+    }
+
+    try {
+        let leadInfo = null;
+        if (callData.leadPhone) {
+            const leadQuery = await db.collection('leads')
+                .where('phone', '==', callData.leadPhone)
+                .limit(1)
+                .get();
+            if (!leadQuery.empty) {
+                const doc = leadQuery.docs[0];
+                const data = doc.data();
+                leadInfo = {
+                    id: doc.id,
+                    firstName: data.firstName || '',
+                    lastName: data.lastName || '',
+                    email: data.email || ''
+                };
+                
+                let status = 'contacted';
+                if (callData.status === 'answered') {
+                    status = 'picked';
+                } else if (callData.status === 'failed' || callData.status === 'no_answer') {
+                    status = 'not_picked';
+                } else if (callData.status === 'voicemail') {
+                    status = 'callback';
+                }
+                
+                await db.collection('leads').doc(doc.id).update({
+                    status: status,
+                    lastContacted: new Date().toISOString(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    lastUpdatedBy: currentUser.uid,
+                    lastUpdatedByName: currentUser.displayName || currentUser.email || 'Unknown'
+                });
+                addLog(`Lead ${leadInfo.firstName} ${leadInfo.lastName} status updated to: ${status}`, 'success');
+            }
+        }
+
+        const callRecord = {
+            callSid: callData.callSid || null,
+            agentId: currentUser.uid,
+            agentName: currentUser.displayName || currentUser.email || 'Unknown Agent',
+            leadId: leadInfo?.id || null,
+            leadName: leadInfo ? `${leadInfo.firstName} ${leadInfo.lastName}`.trim() : callData.leadName || null,
+            leadPhone: callData.leadPhone || phoneInput.value.trim() || 'unknown',
+            direction: 'outbound',
+            status: callData.status || 'unknown',
+            startTime: callData.startTime || new Date().toISOString(),
+            endTime: callData.endTime || new Date().toISOString(),
+            duration: callData.duration || 0,
+            recordingSid: callData.recordingSid || null,
+            recordingUrl: callData.recordingUrl || null,
+            transcript: callData.transcript || null,
+            notes: callData.notes || '',
+            callType: 'standard',
+            outcome: callData.outcome || null,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        await db.collection('calls').add(callRecord);
+        addLog(`Call logged to Firebase: ${callData.leadPhone} (${callData.status})`, 'success');
+        
+    } catch (error) {
+        console.error('Error logging call:', error);
+        addLog('Error logging call to Firebase: ' + error.message, 'error');
+    }
+}
+
+// ============================================
+// TWILIO
 // ============================================
 const CONFIG = { BASE_URL: window.location.origin };
 function forceDeviceReady() {
@@ -1210,7 +1391,6 @@ async function initDevice() {
                 hangupBtn.style.display = 'none'; 
                 callBtn.disabled = false; 
                 const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
-                // Log call to Firebase with "answered" status
                 logCallToFirebase({
                     callSid: call.parameters?.CallSid || null,
                     leadPhone: phoneInput.value.trim() || call.parameters?.From || 'unknown',
@@ -1270,7 +1450,6 @@ async function makeCall() {
             hangupBtn.style.display = 'none';
             callBtn.disabled = false;
             const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
-            // Log call to Firebase with "answered" status
             logCallToFirebase({
                 callSid: currentCall?.parameters?.CallSid || null,
                 leadPhone: number,
@@ -1288,7 +1467,6 @@ async function makeCall() {
             callStatus.className = 'call-status error';
             callBtn.disabled = false;
             const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
-            // Log call to Firebase with "failed" status
             logCallToFirebase({
                 callSid: currentCall?.parameters?.CallSid || null,
                 leadPhone: number,
@@ -1306,7 +1484,6 @@ async function makeCall() {
         callStatus.textContent = 'Error';
         callStatus.className = 'call-status error';
         callBtn.disabled = false;
-        // Log failed call to Firebase
         logCallToFirebase({
             leadPhone: number,
             status: 'failed',
@@ -1327,7 +1504,6 @@ function hangup() {
         callStatus.textContent = 'Call ended';
         callStatus.className = 'call-status idle';
         const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
-        // Log call as "ended" (could be considered "answered" since it was connected)
         logCallToFirebase({
             callSid: currentCall?.parameters?.CallSid || null,
             leadPhone: phoneInput.value.trim(),
@@ -1370,7 +1546,14 @@ initialize();
 if (currentUser) { setTimeout(loadLeads, 500); setTimeout(loadMessages, 600); setTimeout(loadSurveys, 700); }
 
 document.querySelectorAll('.modal-overlay').forEach(el => {
-    el.addEventListener('click', (e) => { if (e.target === el) el.classList.remove('show'); });
+    el.addEventListener('click', (e) => { 
+        if (e.target === el) {
+            el.classList.remove('show');
+            if (el.id === 'leadStatusModal') {
+                document.getElementById('leadStatusForm').reset();
+            }
+        }
+    });
 });
 </script>
 </body>
